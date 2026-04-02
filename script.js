@@ -1,3 +1,5 @@
+import { Vector } from "/vector.js";
+
 let canvas;
 let context;
 let request;
@@ -42,16 +44,14 @@ function draw() {
 }
 
 function calculate_movement() {
-    let vector = { x:0, y:0 };
+    let vector = new Vector();
     if (plr.moving_up) { vector.y--; }
     if (plr.moving_right) { vector.x++; }
     if (plr.moving_down) { vector.y++; }
     if (plr.moving_left) { vector.x--; }
 
-    if (vector.x !== 0 || vector.y !== 0) {
-        let magnitude = (vector.x**2 + vector.y**2)**0.5;
-        vector.x *= (plr.speed / magnitude);
-        vector.y *= (plr.speed / magnitude);
+    if (vector.magnitude !== 0) {
+        vector.set_length(plr.speed);
     }
 
     plr.x += vector.x;
