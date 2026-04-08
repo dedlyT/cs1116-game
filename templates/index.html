@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="script.js" type="module"></script>
+    <script src="{{ url_for('static', filename='script.js') }}" type="module"></script>
     <style> 
         canvas {
             margin: 1em;
@@ -13,6 +13,6 @@
     <title>Document</title>
 </head>
 <body>
-    <canvas width="600" height="600"></canvas>
+    <canvas width="750" height="750"></canvas>
 </body>
 </html>
