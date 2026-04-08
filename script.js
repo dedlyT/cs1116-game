@@ -1,4 +1,5 @@
 import { Vector } from "/vector.js";
+import { Player } from "/player.js";
 
 let canvas;
 let context;
@@ -8,22 +9,22 @@ const FPS = 60;
 const INTERVAL = 1000 / FPS;
 let last = Date.now();
 
-let plr = {
-    x: 100,
-    y: 100,
+let plr;
+let actions = {
     moving_up: false,
     moving_down: false,
     moving_left: false,
     moving_right: false,
-    speed: 10,
-    size: 25
+    mouse: new Vector()
 };
 
 document.addEventListener("DOMContentLoaded", init, false)
+document.addEventListener("mousemove", mousemove, false);
 
 function init() {
     canvas = document.querySelector("canvas");
     context = canvas.getContext("2d");
+    plr = new Player(100, 100, 25, 25, 10);
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
     draw()
@@ -39,23 +40,41 @@ function draw() {
     calculate_movement();
 
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "red";
-    context.fillRect(plr.x, plr.y, plr.size, plr.size);
+    plr.draw(context);
 }
 
 function calculate_movement() {
-    let vector = new Vector();
-    if (plr.moving_up) { vector.y--; }
-    if (plr.moving_right) { vector.x++; }
-    if (plr.moving_down) { vector.y++; }
-    if (plr.moving_left) { vector.x--; }
+    let old = plr.coords;
+    let displacement = new Vector();
+    if (actions.moving_up) { displacement.y--; }
+    if (actions.moving_down) { displacement.y++; }
+    if (actions.moving_left) { displacement.x--; }
+    if (actions.moving_right) { displacement.x++; }
 
-    if (vector.magnitude !== 0) {
-        vector.set_length(plr.speed);
+    if (displacement.magnitude !== 0) {
+        displacement.set_length(plr.speed);
     }
 
-    plr.x += vector.x;
-    plr.y += vector.y;
+    // plr.x += displacement.x;
+
+    // if (is_colliding(plr, wall)) {
+    //     plr.x = (old.x <= wall.x) ? (wall.x - plr.width) : (wall.x + wall.width);
+    // }
+
+    // plr.y += displacement.y;
+
+    // if (is_colliding(plr, wall)) {
+    //     plr.y = (old.y <= wall.y) ? (wall.y - plr.height) : (wall.y + wall.height);
+    // }
+
+    plr.set_facing(actions.mouse);
+}
+
+function is_colliding(victim, perp) {
+    return (victim.x + victim.width) > perp.x &&
+           victim.x < (perp.x + perp.width) &&
+           (victim.y + victim.height) > perp.y &&
+           victim.y < (perp.y + perp.height);
 }
 
 function press(event) {
@@ -64,22 +83,22 @@ function press(event) {
     switch (key) {
         case "w":
         case "ArrowUp":
-            plr.moving_up = true;
+            actions.moving_up = true;
             break;
         
         case "a":
         case "ArrowLeft":
-            plr.moving_left = true;
+            actions.moving_left = true;
             break;
         
         case "s":
         case "ArrowDown":
-            plr.moving_down = true;
+            actions.moving_down = true;
             break;
         
         case "d":
         case "ArrowRight":
-            plr.moving_right = true;
+            actions.moving_right = true;
             break;
     }
 }
@@ -89,22 +108,29 @@ function unpress(event) {
     switch (key) {
         case "w":
         case "ArrowUp":
-            plr.moving_up = false;
+            actions.moving_up = false;
             break;
         
         case "a":
         case "ArrowLeft":
-            plr.moving_left = false;
+            actions.moving_left = false;
             break;
         
         case "s":
         case "ArrowDown":
-            plr.moving_down = false;
+            actions.moving_down = false;
             break;
         
         case "d":
         case "ArrowRight":
-            plr.moving_right = false;
+            actions.moving_right = false; 
             break;
     }
+}
+
+function mousemove(event) {
+    if (plr === null || plr === undefined) { return; }
+    actions.mouse.x = event.clientX;
+    actions.mouse.y = event.clientY;
+    plr.set_facing(actions.mouse);
 }
