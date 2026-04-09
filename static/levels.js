@@ -1,77 +1,132 @@
+import { randint } from "./mymath.js";
+
 const TILES = {
-    empty: {name:"empty", colour:"white"},
+    empty: {name:"empty", should_ignore:true},
     grass: {name:"grass", colour:"green"},
-    wood: {name:"wood", colour:"brown", collidable:true, opaque:true}
+    discoloured_grass: {name:"discoloured_grass", colour:"darkgreen"},
+    woodwall: {name:"woodwall", colour:"wheat", collidable:true, opaque:true, persistent:true},
+    woodroof: {name:"woodroof", colour:"tan"},
 };
 
 function generate_array(length, element) {
-  if (!(Number.isInteger(length))) { throw Error("width must be int") }
-  let list = [];
-  for (let i=0; i<length; i++) { list.push(element); }
-  return list;
+    if (!(Number.isInteger(length))) { throw Error("width must be int") }
+    let list = [];
+    for (let i=0; i<length; i++) { list.push(element); }
+    return list;
+}
+
+function generate_matrix(width, height, element) {
+    return generate_array(height, generate_array(width, element));
 }
 
 class Level {
     #tilesize;
 
     constructor(width=30, height=30) {
-        this.matrix = [];
-        let middle = generate_array(width, TILES.grass.name);
-        middle[0] = TILES.wood.name;
-        middle[29] = TILES.wood.name;
-        this.matrix = generate_array(height, middle);
-        let tops = generate_array(width, TILES.wood.name);
-        this.matrix[0] = [...tops];
-        this.matrix[29] = [...tops];
+        this.background = generate_matrix(width, height, TILES.grass.name);
+
+        this.middleground = [];
+        let middle = generate_array(width, TILES.empty.name);
+        middle[0] = TILES.woodwall.name;
+        middle[29] = TILES.woodwall.name;
+        this.middleground = generate_array(height, middle);
+        let tops = generate_array(width, TILES.woodwall.name);
+        this.middleground[0] = [...tops];
+        this.middleground[29] = [...tops];
+
+        this.foreground = generate_matrix(width, height, TILES.empty.name);
 
         this.#tilesize = 750 / Math.max(width, height);    
     }
 
-    draw(context) {
-        for (let [r, row] of this.matrix.entries()) {
+    draw_layer(context, layer) {
+        let matrix = this[layer];
+        if (matrix === undefined) throw Error("layer is invalid!");
+        
+        for (let [r, row] of matrix.entries()) {
             for (let [c, name] of row.entries()) {
-                if (this.src === undefined) {
-                    context.fillStyle = TILES[name].colour;
-                    context.fillRect(c*this.#tilesize, r*this.#tilesize, this.#tilesize, this.#tilesize);   
-                }
+                this.draw_tile(context, name, c*this.#tilesize, r*this.#tilesize, this.#tilesize)
             }
+        }
+    }
+
+    draw_layer_attribute(context, layer, attribute, should_have=true) {
+        let matrix = this[layer];
+        if (matrix === undefined) throw Error("layer is invalid!");
+
+        for (let [r, row] of matrix.entries()) {
+            for (let [c, name] of row.entries()) {
+                let tile_attr = TILES[name][attribute];
+                if (should_have && tile_attr === undefined) { continue; }
+                if (!should_have && tile_attr !== undefined) { continue; }
+                this.draw_tile(context, name, c*this.#tilesize, r*this.#tilesize, this.#tilesize);
+            }
+        }
+    }
+
+    draw_tile(context, tile_name, x, y, tilesize) {
+        let tile_data = TILES[tile_name]
+        if (tile_data.should_ignore === true) return;
+        
+        if (tile_data.src === undefined) {
+            if (tile_data.alpha !== undefined) {
+                context.globalAlpha = tile_data.alpha;
+            }
+            context.fillStyle = tile_data.colour;
+            context.globalAlpha = 1.0;
+            context.fillRect(x, y, tilesize, tilesize);   
         }
     }
 
     get width() { return this.matrix[0].length };
     get height() { return this.matrix.length };
-    get vision_matrix() {
-      let res = [];
-      for (let row of this.matrix) {
-        let line = [];
-        for (let item of row) {
-          line.push(Number(TILES[item].opaque === true));
+    get vision_mask() {
+        let res = [];
+        for (let row of this.foreground) {
+            let line = [];
+            for (let item of row) {
+                line.push(Number(TILES[item].opaque === true));
+            }
+            res.push(line);
         }
-        res.push(line);
-      }
-      return res;
+        return res;
     }
 }
 
 class First extends Level {
     constructor() {
-        super(30, 30);
+        super();
 
-        let middle = generate_array(30, TILES.grass.name);
-        middle[0] = TILES.wood.name;
-        middle[29] = TILES.wood.name;
-        
+        let grass_row = generate_array(30, TILES.grass.name);
+        let ranges = [[0,2],[2,4],[4,5],[4,5],[3,4],[0,3]];
+        for (let [i, range] of ranges.entries()) {
+            let row = [...grass_row];
+            let size = randint(...range);
+            for (let n=0; n<size; n++) { row[7+n] = TILES.discoloured_grass.name; }
+            this.background[3+i] = row;
+        }
+
+        let middle = generate_array(30, TILES.empty.name);
+        middle[0] = TILES.woodwall.name;
+        middle[29] = TILES.woodwall.name;
+
         let vert_block = [...middle];
-        vert_block[5] = TILES.wood.name;
-        this.matrix[4] = [...vert_block];
-        this.matrix[5] = [...vert_block];
-        this.matrix[6] = [...vert_block];
+        vert_block[5] = TILES.woodwall.name;
+        this.middleground[4] = [...vert_block];
+        this.middleground[7] = [...vert_block];
+        this.middleground[8] = [...vert_block];
 
         let horiz_block = [...middle];
-        horiz_block[4] = TILES.wood.name;
-        horiz_block[5] = TILES.wood.name;
-        horiz_block[6] = TILES.wood.name;
-        this.matrix[20] = [...horiz_block];
+        horiz_block[4] = TILES.woodwall.name;
+        horiz_block[7] = TILES.woodwall.name;
+        horiz_block[8] = TILES.woodwall.name;
+        horiz_block[9] = TILES.woodwall.name;
+        this.middleground[20] = horiz_block;
+
+        let roof_block = generate_array(30, TILES.empty.name);
+        roof_block[5] = TILES.woodroof.name;
+        roof_block[6] = TILES.woodroof.name;
+        this.foreground[20] = roof_block;
     }
 }
 
