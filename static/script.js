@@ -36,62 +36,66 @@ function draw() {
     request = window.requestAnimationFrame(draw)
     let current = Date.now();
     let elapsed = current - last;
-    if (elapsed <= INTERVAL) { return; }
+    if (elapsed <= INTERVAL) return;
     last = current - (elapsed % INTERVAL);
 
     calculate_movement(elapsed);
 
     context.clearRect(0, 0, canvas.width, canvas.height);
-    LEVELS.first.draw(context);
+    LEVELS.first.draw_layer(context, "background");
+    LEVELS.first.draw_layer_attribute(context, "middleground", "persistent", false);
     draw_fov(context);
+    LEVELS.first.draw_layer_attribute(context, "middleground", "persistent");
     plr.draw(context);
+    LEVELS.first.draw_layer(context, "foreground");
 }
 
 function calculate_movement(dT) {
     let old = plr.coords;
     let displacement = new Vector();
-    if (actions.moving_up) { displacement.y--; }
-    if (actions.moving_down) { displacement.y++; }
-    if (actions.moving_left) { displacement.x--; }
-    if (actions.moving_right) { displacement.x++; }
+    if (actions.moving_up) displacement.y--;
+    if (actions.moving_down) displacement.y++;
+    if (actions.moving_left) displacement.x--;
+    if (actions.moving_right) displacement.x++;
 
     if (displacement.magnitude !== 0) {
         displacement.set_length(plr.speed);
     }
 
-    let adj;
-
-    plr.x += displacement.x * dT;
-    adj = get_adjacent_tiles(plr.coords, LEVELS.first);
-    for (let [r,c] of adj) {
-        if (TILES[LEVELS.first.matrix[r][c]].collidable === undefined) { continue; }
-        let x = c*TILESIZE;
-        let y = r*TILESIZE;
-        if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
-            plr.x = (old.x <= x) ? (x - plr.width) : (x + TILESIZE);
-        }
-    }
-
-    plr.y += displacement.y * dT;
-    adj = get_adjacent_tiles(plr.coords, LEVELS.first);
-    for (let [r,c] of adj) {
-        if (TILES[LEVELS.first.matrix[r][c]].collidable === undefined) { continue; }
-        let x = c*TILESIZE;
-        let y = r*TILESIZE;
-        if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
-            plr.y = (old.y <= y) ? (y - plr.height) : (y + TILESIZE);
-        }
-    }
+    resolve_axis_collision("x", displacement.x, dT, (x) => (old.x <= x) ? (x - plr.width - 0.01) : (x + TILESIZE + 0.01));
+    resolve_axis_collision("y", displacement.y, dT, (y) => (old.y <= y) ? (y - plr.height - 0.01) : (y + TILESIZE + 0.01));
 
     plr.set_facing(actions.mouse);
 }
 
+function resolve_axis_collision(axis, displacement_component, dT, resolution_lambda) {
+    plr[axis] += displacement_component * dT;
+    let adjf = get_adjacent_tiles(plr.coords, LEVELS.first.foreground);
+    let adjm = get_adjacent_tiles(plr.coords, LEVELS.first.middleground);
+    let adj_iter = [
+        [adjf, LEVELS.first.foreground], 
+        [adjm, LEVELS.first.middleground]
+    ];
+
+    for (let [adj, matrix] of adj_iter) {
+        for (let [r,c] of adj) {
+            if (TILES[matrix[r][c]].collidable === undefined) continue;
+            
+            let x = c*TILESIZE;
+            let y = r*TILESIZE;
+            if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
+                plr[axis] = resolution_lambda(axis === "x" ? x : y);
+            }
+        }
+    }
+}
+
 function draw_fov(context) {
-    let vision_matrix = LEVELS.first.vision_matrix;
-    for (let [r, row] of vision_matrix.entries()) {
-        if (r === 0 || r === (vision_matrix.length-1)) { continue; }
+    let vision_mask = LEVELS.first.vision_mask;
+    for (let [r, row] of vision_mask.entries()) {
+        if (r === 0 || r === (vision_mask.length-1)) { continue; }
         for (let [c, item] of row.entries()) {
-            if (c === 0 || c === (vision_matrix[0].length-1)) { continue; }
+            if (c === 0 || c === (vision_mask[0].length-1)) { continue; }
             if (item === 0) { continue; }
             let tile = new Vector(c*TILESIZE, r*TILESIZE);
             let vertices = [new Vector(tile.x, tile.y), new Vector(tile.x+TILESIZE, tile.y), new 

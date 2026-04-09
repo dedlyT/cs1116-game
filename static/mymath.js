@@ -146,4 +146,12 @@ class Line {
     }
 }
 
-export { Vector, Line }
+function randint(a, b=null) {
+    if (b === null) { b=a; a=0; }
+    if (!Number.isInteger(a) || !Number.isInteger(b)) { throw Error("a and b must be integers!"); }
+    let min = Math.min(a, b);
+    let max = Math.max(a, b);
+    return Math.floor(min + (max - min + 1) * Math.random());
+}
+
+export { Vector, Line, randint }
