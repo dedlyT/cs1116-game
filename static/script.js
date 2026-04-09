@@ -1,4 +1,4 @@
-import { Vector } from "./vector.js";
+import { Vector, Line } from "./mymath.js";
 import { Player } from "./player.js";
 import { LEVELS, TILES } from "./levels.js";
 
@@ -8,6 +8,7 @@ let request;
 
 const FPS = 30;
 const INTERVAL = 1000 / FPS;
+const TILESIZE = 25;
 let last = Date.now();
 
 let plr;
@@ -42,6 +43,7 @@ function draw() {
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     LEVELS.first.draw(context);
+    draw_fov(context);
     plr.draw(context);
 }
 
@@ -58,31 +60,88 @@ function calculate_movement(dT) {
     }
 
     let adj;
-    plr.x += displacement.x * dT;
 
+    plr.x += displacement.x * dT;
     adj = get_adjacent_tiles(plr.coords, LEVELS.first);
     for (let [r,c] of adj) {
         if (TILES[LEVELS.first.matrix[r][c]].collidable === undefined) { continue; }
-        let x = r*25;
-        let y = c*25;
-        if (is_colliding(plr, {x:x, y:y, width:25, height:25})) {
-            plr.x = (old.x <= x) ? (x - plr.width) : (x + 25);
+        let x = c*TILESIZE;
+        let y = r*TILESIZE;
+        if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
+            plr.x = (old.x <= x) ? (x - plr.width) : (x + TILESIZE);
         }
     }
 
     plr.y += displacement.y * dT;
-
     adj = get_adjacent_tiles(plr.coords, LEVELS.first);
     for (let [r,c] of adj) {
         if (TILES[LEVELS.first.matrix[r][c]].collidable === undefined) { continue; }
-        let x = r*25;
-        let y = c*25;
-        if (is_colliding(plr, {x:x, y:y, width:25, height:25})) {
-            plr.y = (old.y <= y) ? (y - plr.height) : (y + 25);
+        let x = c*TILESIZE;
+        let y = r*TILESIZE;
+        if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
+            plr.y = (old.y <= y) ? (y - plr.height) : (y + TILESIZE);
         }
     }
 
     plr.set_facing(actions.mouse);
+}
+
+function draw_fov(context) {
+    let vision_matrix = LEVELS.first.vision_matrix;
+    for (let [r, row] of vision_matrix.entries()) {
+        if (r === 0 || r === (vision_matrix.length-1)) { continue; }
+        for (let [c, item] of row.entries()) {
+            if (c === 0 || c === (vision_matrix[0].length-1)) { continue; }
+            if (item === 0) { continue; }
+            let tile = new Vector(c*TILESIZE, r*TILESIZE);
+            let vertices = [new Vector(tile.x, tile.y), new Vector(tile.x+TILESIZE, tile.y), new 
+                Vector(tile.x, tile.y+TILESIZE), new Vector(tile.x+TILESIZE, tile.y+TILESIZE)];
+            let distances = vertices.map(vertex => Vector.distance_between(plr.coords, vertex));
+            let max_index = distances.reduce((max_i, dist, i, arr) => (dist > arr[max_i]) ? i : max_i, 0);
+            let min_index = distances.reduce((min_i, dist, i, arr) => (dist < arr[min_i]) ? i : min_i, 0);
+            vertices = vertices.filter( (_,i) => i !== max_index && i !== min_index );
+            let points = [];
+            for (let vertex of vertices) {
+                let ray = Line.from_points(plr.coords, vertex);
+                let direction = Vector.directional_between(plr.coords, vertex);
+                
+                let border_lines = [];
+                if (direction.i < 0) {
+                    border_lines.push( Line.from_points(new Vector(canvas.width), new Vector(canvas.width, 1)) );
+                } else {
+                    border_lines.push( Line.from_points(new Vector(), new Vector(0,1)) );
+                }
+                if (direction.j > 0) {
+                    border_lines.push(new Line(0, 0));
+                } else {
+                    border_lines.push(new Line(0, canvas.height));
+                }
+                
+                let updown = Line.get_intercept(ray, border_lines[0]);
+                let leftright = Line.get_intercept(ray, border_lines[1]);
+                console.log(direction);
+                console.log(border_lines);
+                console.log(updown, leftright);
+                let endpoint;
+                if (updown !== null && leftright !== null) {
+                    
+                    endpoint = (updown.distance_to(plr.coords) > leftright.distance_to(plr.coords)) ? updown : leftright;
+                } else {
+                    endpoint = (updown === null) ? leftright : updown;
+                }
+                points.push([vertex, endpoint])
+            }
+
+            context.fillStyle = "black";
+            context.beginPath();
+            context.moveTo(points[0][0].x, points[0][0].y);
+            context.lineTo(points[0][1].x, points[0][1].y);
+            context.lineTo(points[1][1].x, points[1][1].y);
+            context.lineTo(points[1][0].x, points[1][0].y);
+            context.closePath();
+            context.fill();
+        }
+    }
 }
 
 /*EXAMPLE:
@@ -93,15 +152,15 @@ F G H - -
 pos is at O
 returns: [[Ar,Ac], [Br,Bc], [Cr, Cc], [Dr, Dc], [Or, Oc], ... ], 
         where LEVELS[Ar][Ac] == A, LEVELS[Br][Bc] == B, etc. etc.
-NOTE: if the coords of a nearby tile goes outside the range of the level matrix, it is discluded from the result.
+NOTE: if the coords of a nearby tile go outside the range of the level matrix, they are discluded from the result.
 */
 function get_adjacent_tiles(pos, level) {
-    let tile_x = Math.floor(pos.x / 25);
-    let tile_y = Math.floor(pos.y / 25);
+    let tile_x = Math.floor(pos.x / TILESIZE);
+    let tile_y = Math.floor(pos.y / TILESIZE);
     let res = [];
-    for (let r=(tile_x-1); r<=(tile_x+1); r++) {
+    for (let r=(tile_y-1); r<=(tile_y+1); r++) {
         if (r < 0 || r >= level.height) { continue; }
-        for(let c=(tile_y-1); c<=(tile_y+1); c++) {
+        for(let c=(tile_x-1); c<=(tile_x+1); c++) {
             if (c < 0 || r >= level.width) { continue; }
             res.push([r,c]);
         }
