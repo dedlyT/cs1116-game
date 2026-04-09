@@ -82,7 +82,7 @@ class Level {
     get height() { return this.matrix.length };
     get vision_mask() {
         let res = [];
-        for (let row of this.foreground) {
+        for (let row of this.middleground) {
             let line = [];
             for (let item of row) {
                 line.push(Number(TILES[item].opaque === true));
