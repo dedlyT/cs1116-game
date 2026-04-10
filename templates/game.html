@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Document{% endblock %}
+
+{% block head %}
+<script src="{{ url_for('static', filename='script.js') }}" type="module"></script>
+<style> 
+    canvas {
+        margin: 1em;
+        border: 2px solid black;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<canvas width="750" height="750"></canvas>
+{% endblock %}

@@ -1,4 +1,4 @@
-import { randint } from "./mymath.js";
+import { Vector, randint } from "./mymath.js";
 
 const TILES = {
     empty: {name:"empty", should_ignore:true},
@@ -11,7 +11,13 @@ const TILES = {
 function generate_array(length, element) {
     if (!(Number.isInteger(length))) { throw Error("width must be int") }
     let list = [];
-    for (let i=0; i<length; i++) { list.push(element); }
+    for (let i=0; i<length; i++) {
+        let temp = element; 
+        if (element instanceof Array) {
+            temp = [...element];
+        }
+        list.push(temp); 
+    }
     return list;
 }
 
@@ -20,8 +26,6 @@ function generate_matrix(width, height, element) {
 }
 
 class Level {
-    #tilesize;
-
     constructor(width=30, height=30) {
         this.background = generate_matrix(width, height, TILES.grass.name);
 
@@ -36,7 +40,9 @@ class Level {
 
         this.foreground = generate_matrix(width, height, TILES.empty.name);
 
-        this.#tilesize = 750 / Math.max(width, height);    
+        this.tilesize = 750 / Math.max(width, height);
+        
+        this.spawn = new Vector(5*this.tilesize, 5*this.tilesize);
     }
 
     draw_layer(context, layer) {
@@ -45,7 +51,7 @@ class Level {
         
         for (let [r, row] of matrix.entries()) {
             for (let [c, name] of row.entries()) {
-                this.draw_tile(context, name, c*this.#tilesize, r*this.#tilesize, this.#tilesize)
+                this.draw_tile(context, name, c*this.tilesize, r*this.tilesize, this.tilesize)
             }
         }
     }
@@ -59,7 +65,7 @@ class Level {
                 let tile_attr = TILES[name][attribute];
                 if (should_have && tile_attr === undefined) { continue; }
                 if (!should_have && tile_attr !== undefined) { continue; }
-                this.draw_tile(context, name, c*this.#tilesize, r*this.#tilesize, this.#tilesize);
+                this.draw_tile(context, name, c*this.tilesize, r*this.tilesize, this.tilesize);
             }
         }
     }
@@ -130,6 +136,61 @@ class First extends Level {
     }
 }
 
-const LEVELS = {first: new First()};
+class Second extends Level {
+    constructor() {
+        super();
+
+        const _=0;
+
+        this.background = generate_matrix(30, 30, TILES.empty.name);
+        console.log(this.background);
+        let background_matrix = [
+        //   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
+   /*0*/    [_, _, _, _, _, _, _, _, _, _, _, _, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*1*/    [_, _, _, _, _, _, _, _, _, _, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*2*/    [_, _, _, _, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _],
+   /*3*/    [_, _, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _],
+   /*4*/    [_, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _],
+   /*5*/    [_, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _],
+   /*6*/    [_, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, _, _, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _],
+   /*7*/    [_, _, _, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _],
+   /*8*/    [_, _, _, 1, 1, 1, 1, _, _, _, _, _, 1, 1, _, _, _, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _],
+   /*9*/    [_, _, _, 1, 1, 1, 1, _, _, _, 1, 1, 1, 1, 1, 1, _, _, _, 1, 1, 1, 1, 1, 1, _, _, _, _, _],
+   /*10*/   [_, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _],
+   /*11*/   [_, _, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _],
+   /*12*/   [_, _, _, _, _, _, _, _, _, 1, 1, 1, 1, _, 1, 1, _, 1, 1, 1, 1, _, 1, 1, 1, 1, 1, 1, 1, 1],
+   /*13*/   [_, _, _, _, _, _, _, _, _, _, 1, 1, 1, _, 1, 1, _, 1, 1, 1, 1, _, _, 1, 1, 1, 1, 1, 1, 1],
+   /*14*/   [_, _, _, _, _, _, _, _, _, _, _, 1, 1, _, _, _, _, _, 1, 1, 1, _, _, _, 1, 1, 1, 1, 1, 1],
+   /*15*/   [_, _, _, _, _, _, _, _, _, _, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*16*/   [_, _, _, _, _, _, _, _, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*17*/   [_, _, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*18*/   [_, _, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*19*/   [_, _, 1, 1, 1, _, 1, 1, _, _, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*20*/   [_, _, 1, 1, _, _, 1, 1, _, _, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*21*/   [_, _, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*22*/   [_, _, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*23*/   [_, _, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*24*/   [_, _, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*25*/   [_, _, 1, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*26*/   [_, _, _, 1, 1, 1, 1, 1, 1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*27*/   [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*28*/   [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+   /*29*/   [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _]
+        ]
+        console.log(background_matrix);
+        for (let [r, row] of background_matrix.entries()) {
+            for (let [c, item] of row.entries()) {
+                this.background[r][c] = (item === 1) ? TILES.grass.name : TILES.empty.name;
+            }
+        }
+
+        this.middleground = generate_matrix(30, 30, TILES.empty.name);
+        this.foreground = generate_matrix(30, 30, TILES.empty.name);
+
+        this.spawn = new Vector(7*this.tilesize, 25*this.tilesize);
+    }
+}
+
+const LEVELS = {first: new Second()};
 
 export { LEVELS, TILES };

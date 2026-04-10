@@ -6,7 +6,7 @@ let canvas;
 let context;
 let request;
 
-const FPS = 30;
+const FPS = 60;
 const INTERVAL = 1000 / FPS;
 const TILESIZE = 25;
 let last = Date.now();
@@ -26,7 +26,7 @@ document.addEventListener("mousemove", mousemove, false);
 function init() {
     canvas = document.querySelector("canvas");
     context = canvas.getContext("2d");
-    plr = new Player(100, 100, 25, 25, 0.15);
+    plr = new Player(LEVELS.first.spawn.x, LEVELS.first.spawn.y, 25, 25, 0.25);
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
     draw()

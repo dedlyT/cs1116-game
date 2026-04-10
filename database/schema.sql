@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS accounts;
+CREATE TABLE accounts (
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL
+) WITHOUT ROWID;

@@ -1,18 +1,2 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="{{ url_for('static', filename='script.js') }}" type="module"></script>
-    <style> 
-        canvas {
-            margin: 1em;
-            border: 2px solid black;
-        }
-    </style>
-    <title>Document</title>
-</head>
-<body>
-    <canvas width="750" height="750"></canvas>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Niall's CA2 CS1116{% endblock %}

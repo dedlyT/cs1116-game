@@ -1,0 +1,4 @@
+Table accounts {
+    username text [primary key]
+    password text [not null]
+}

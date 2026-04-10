@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% block head %}{% endblock %}
+    <title>{% block title %}{% endblock %}</title>
+</head>
+<nav>
+    <a href="{{ url_for('home') }}">Home</a>
+    <a href="{{ url_for('game') }}">Game</a>
+    <a href="{{ url_for('editor') }}">Editor</a>
+
+    {% if hide_account_mger is not defined %}
+    {% if g.username is none %}
+    <a href="{{ url_for('login', next=request.url) }}">Log in</a>
+    <a href="{{ url_for('signup', next=request.url) }}">Sign up</a>
+    {% else %}
+    <form action="{{ url_for('logout', next=request.url) }}" method="POST" novalidate>
+        {{ logout.hidden_tag() }}
+        {{ logout.submit() }}
+    </form>
+    {% endif %}
+    {% endif %}
+</nav>
+<body>
+    {% block body %}{% endblock %}
+</body>
+</html>
