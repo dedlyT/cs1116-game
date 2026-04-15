@@ -10,30 +10,37 @@ const INTERVAL = 1000 / FPS;
 let last = Date.now();
 
 let current_level;
-let level_name = null;
+let current_name = "";
 const LAYERS = ["background", "middleground", "foreground"];
+const LEGAL_CHARS = "abcdefghijklmnopqrstuvwxyz_"
 let current_layer = 0;
 let current_tile = TILES.woodwall.name;
 let show_all_layers = true;
 let relative_tilesize = 25;
 let relative_offset = new Vector();
 
-let mouse = {lclick: false, rclick: false, pos: null};
-let ui_bounds = {
+const mouse = {lclick: false, rclick: false, pos: null};
+const ui_bounds = {
     layer: [new Vector(5,5), new Vector()],
     view_all: [new Vector(), new Vector()],
     open_edit_menu: [new Vector(), new Vector()],
     dropdown: [new Vector(5), new Vector()],
     dropdown_items: [],
     close_edit_menu: [new Vector(), new Vector()],
-    level_name: [new Vector(), new Vector()]
+    level_name: [new Vector(), new Vector()],
+    export: [new Vector(), new Vector()],
+    import: [new Vector(), new Vector()]
 };
-let ui_settings = {
+const ui_settings = {
     dropdown_open: false,
     dropdown_page: 0,
     dropdown_max: 20,
     edit_menu_open: false,
-    editing_name: false
+    editing_name: false,
+    editing_name_cursor_shown: false,
+    editing_name_cursor_blink_interval: 1250, 
+    editing_name_cursor_blink_accumulator: 0,
+    name_max_length: 20
 };
 
 document.addEventListener("DOMContentLoaded", init, false);
@@ -47,6 +54,8 @@ function init() {
     window.addEventListener("mousemove", mousemove, false);
     window.addEventListener("mousedown", click, false);
     window.addEventListener("mouseup", unclick, false);
+    window.addEventListener("keydown", press, false);
+    window.addEventListener("keyup", unpress, false);
     draw();
 }
 
@@ -54,8 +63,17 @@ function draw() {
     request = window.requestAnimationFrame(draw);
     let current = Date.now();
     let elapsed = current - last;
+
+    if (ui_settings.editing_name) {
+        ui_settings.editing_name_cursor_blink_accumulator += elapsed;
+        if (ui_settings.editing_name_cursor_blink_accumulator >= ui_settings.editing_name_cursor_blink_interval) {
+            ui_settings.editing_name_cursor_blink_accumulator = 0;
+            ui_settings.editing_name_cursor_shown = !ui_settings.editing_name_cursor_shown;
+        }
+    }
+
     if (elapsed <= INTERVAL) return;
-    last = current - (elapsed % INTERVAL);
+    last = current - (elapsed % INTERVAL);;
     
     context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -186,20 +204,25 @@ function draw() {
     }
 
     if (ui_settings.edit_menu_open) {
+        //black dimming background
         context.fillStyle = "rgb(0,0,0,0.5)";
         context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        //main window
         context.fillStyle = "lightcoral";
         dimensions.x = canvas.width-100;
         dimensions.y = canvas.height-500;
-        let edit_menu_pos = new Vector(50, 150);
+        const edit_menu_pos = new Vector(50, 150);
+        const edit_menu_dimensions = new Vector(...dimensions);
         context.fillRect(...edit_menu_pos, ...dimensions);
         context.strokeStyle = "indianred"
         context.lineWidth = 8;
         context.strokeRect(...edit_menu_pos, ...dimensions);
 
-        context.font = "bold 30px Arial";
+        //close button
+        context.font = "bold 30px monospace";
         text_size = context.measureText("x");
-        ui_bounds.close_edit_menu[0].x = edit_menu_pos.x + dimensions.x - text_size.width - 20;
+        ui_bounds.close_edit_menu[0].x = edit_menu_pos.x + edit_menu_dimensions.x - text_size.width - 20;
         ui_bounds.close_edit_menu[0].y = edit_menu_pos.y + 10;
         dimensions.x = text_size.width + 10;
         dimensions.y = text_size.hangingBaseline + 5;
@@ -212,7 +235,51 @@ function draw() {
         ui_bounds.close_edit_menu[1].x = ui_bounds.close_edit_menu[0].x + dimensions.x;
         ui_bounds.close_edit_menu[1].y = ui_bounds.close_edit_menu[0].y + dimensions.y;
 
+        //level name text box
+        ui_bounds.level_name[0].x = edit_menu_pos.x + 50;
+        ui_bounds.level_name[0].y = edit_menu_pos.y + 25;
+        context.font = "40px monospace";
+        text_size = context.measureText(LEGAL_CHARS + "|");
+        dimensions.x = (edit_menu_dimensions.x - dimensions.x - 100);
+        dimensions.y = text_size.hangingBaseline + 15;
+        context.fillRect(...ui_bounds.level_name[0], ...dimensions);
+        let shown_text = current_name;
+        context.fillStyle = "azure";
+        if (!ui_settings.editing_name && current_name === "") {
+            shown_text = "insert name...";
+            context.fillStyle = "lightcoral";
+        }
+        context.fillText(
+            shown_text, 
+            ui_bounds.level_name[0].x+5, 
+            ui_bounds.level_name[0].y + text_size.hangingBaseline + 7.5
+        );
+        
+        if (ui_settings.editing_name && ui_settings.editing_name_cursor_shown) {
+            //cursor in text box
+            text_size = context.measureText(shown_text);
+            context.font = "38px monospace";
+            context.fillStyle = "lightcoral";
+            context.fillText(
+                "|",
+                ui_bounds.level_name[0].x + text_size.width,
+                ui_bounds.level_name[0].y + text_size.hangingBaseline + 2
+            );
+        }
 
+        ui_bounds.level_name[1].x = ui_bounds.level_name[0].x + dimensions.x;
+        ui_bounds.level_name[1].y = ui_bounds.level_name[0].y + dimensions.y;
+
+        //level name max length text
+        context.font = "15px monospace";
+        let length_text = `${current_name.length}/${ui_settings.name_max_length}`;
+        text_size = context.measureText(length_text);
+        context.fillStyle = "indianred";
+        context.fillText(
+            length_text,
+            ui_bounds.level_name[0].x,
+            ui_bounds.level_name[1].y + text_size.hangingBaseline + 5
+        );
     }
 }
 
@@ -254,6 +321,15 @@ function click_UI() {
         if (is_colliding(mouse_pos, generate_box(ui_bounds.close_edit_menu))) {
             ui_settings.edit_menu_open = false;
         }
+
+        if (is_colliding(mouse_pos, generate_box(ui_bounds.level_name))) {
+            ui_settings.editing_name = true;
+            ui_settings.editing_name_cursor_shown = true;
+            ui_settings.editing_name_cursor_blink_accumulator = 0;
+        } else {
+            ui_settings.editing_name = false;
+        }
+
         return true;
     }
 
@@ -310,4 +386,29 @@ function unclick(event) {
             mouse.rclick = false;
             break;
     }
+}
+
+function press(event) {
+    event.preventDefault();
+
+    let key = event.key.toLowerCase();
+
+    if (ui_settings.editing_name) {
+        if (LEGAL_CHARS.includes(key) && current_name.length < ui_settings.name_max_length) {
+            current_name += key;
+            return;
+        }
+        switch (key) {
+            case "backspace":
+                current_name = current_name.slice(0, current_name.length - 1);
+                break;
+            case "enter":
+                ui_settings.editing_name = false;
+                break;
+        }
+    }
+}
+
+function unpress(event) {
+
 }
