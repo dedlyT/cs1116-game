@@ -1,10 +1,12 @@
-from flask import Flask, render_template, redirect, url_for, session, g, request
+from flask import Flask, render_template, redirect, url_for, session, g, request, abort
 from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import database
 import sqlite3 as sql
 import functools
 import forms
+import json
+import os
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "secret-key"
@@ -97,6 +99,25 @@ def signup():
             return redirect(next)
 
     return render_template("signup.html", f=signup_form)
+
+@app.route("/level/")
+@app.route("/level/<level_name>")
+def get_level(level_name=None):
+    if level_name is None:
+        return os.listdir(os.path.join(app.root_path, "static/levels"))
+    
+    try:
+        with open(f"static/levels/{level_name}", "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return abort(404);
+    
+    return {
+        "background": data["background"],
+        "middleground": data["middleground"],
+        "foreground": data["foreground"],
+        "spawn": data["spawn"]
+    }
 
 @app.route("/logout/", methods=["POST"])
 @login_required

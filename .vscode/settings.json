@@ -4,6 +4,7 @@
     "files.exclude": {
         "**/__pycache__": true,
         "**/.venv": true,
-        "**/.vscode": true
+        "**/.vscode": true,
+        "**/flask_session": true
     }
 }

@@ -56,6 +56,12 @@ class Vector {
         this.j = v; 
     }
 
+    //...Vector returns [i, j]
+    *[Symbol.iterator]() {
+        yield this.i;
+        yield this.j;
+    }
+
     static differential_between(v, u) {
         return new Vector(v.x - u.x, 
                           v.y - u.y);
@@ -154,4 +160,20 @@ function randint(a, b=null) {
     return Math.floor(min + (max - min + 1) * Math.random());
 }
 
-export { Vector, Line, randint }
+function is_colliding(victim, perp) {
+    let victim_dimensions = [
+        ("width" in victim) ? victim.width : 0,
+        ("height" in victim) ? victim.height : 0
+    ]
+    let perp_dimensions = [
+        ("width" in perp) ? perp.width : 0,
+        ("height" in perp) ? perp.height : 0
+    ]
+
+    return (victim.x + victim_dimensions[0]) > perp.x &&
+           victim.x < (perp.x + perp_dimensions[0]) &&
+           (victim.y + victim_dimensions[1]) > perp.y &&
+           victim.y < (perp.y + perp_dimensions[1]);
+}
+
+export { Vector, Line, randint, is_colliding }

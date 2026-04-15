@@ -1,2 +1,55 @@
 {% extends "base.html" %}
 {% block title %}Level Editor{% endblock %}
+
+{% block head %}
+<script>
+    // eslint-disable-next-line
+    const SCRIPT_ROOT = {{ request.script_root | tojson }}
+</script>
+<script src="{{ url_for('static', filename='scripts/editor.js') }}" type="module"></script>
+<style> 
+    body {
+        display: flex;
+    }
+    canvas {
+        margin: 1em;
+        border: 2px solid black;
+    }
+    kbd {
+        font-size: 0.9em;
+        font-weight: bold;
+        color: grey;
+        background: darkgrey;
+        border: 2px solid grey;
+        border-radius: 2px;
+        font: monospace;
+        padding: 0.5em 1em;
+        margin: 0.1em;
+        text-align: center;
+    }
+    .movement {
+        height: 5em;
+        display: grid;
+        grid-template-areas:
+            ". w ."
+            "a s d";
+    
+        & .W { grid-area: w; }
+        & .A { grid-area: a; }
+        & .S { grid-area: s; }
+        & .D { grid-area: d; }
+    }
+</style>
+{% endblock %} 
+
+{% block body %}
+<canvas width="750" height="750"></canvas>
+<p>camera controls</p>
+<section class="movement">
+    <kbd class="W">^</kbd>
+    <kbd class="A"><</kbd>
+    <kbd class="S">v</kbd>
+    <kbd class="D">></kbd>
+</section>
+<a id="download"></a>
+{% endblock %}

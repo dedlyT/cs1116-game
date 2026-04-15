@@ -1,4 +1,4 @@
-import { Vector, Line } from "./mymath.js";
+import { Vector, Line, is_colliding } from "./mymath.js";
 import { Player } from "./player.js";
 import { LEVELS, TILES } from "./levels.js";
 
@@ -26,14 +26,14 @@ document.addEventListener("mousemove", mousemove, false);
 function init() {
     canvas = document.querySelector("canvas");
     context = canvas.getContext("2d");
-    plr = new Player(LEVELS.first.spawn.x, LEVELS.first.spawn.y, 25, 25, 0.25);
+    plr = new Player(...LEVELS.first.spawn, ...[25, 25], 0.25);
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
-    draw()
+    draw();
 }
 
 function draw() {
-    request = window.requestAnimationFrame(draw)
+    request = window.requestAnimationFrame(draw);
     let current = Date.now();
     let elapsed = current - last;
     if (elapsed <= INTERVAL) return;
@@ -138,10 +138,10 @@ function draw_fov(context) {
 
             context.fillStyle = "black";
             context.beginPath();
-            context.moveTo(points[0][0].x, points[0][0].y);
-            context.lineTo(points[0][1].x, points[0][1].y);
-            context.lineTo(points[1][1].x, points[1][1].y);
-            context.lineTo(points[1][0].x, points[1][0].y);
+            context.moveTo(...points[0][0]);
+            context.lineTo(...points[0][1]);
+            context.lineTo(...points[1][1]);
+            context.lineTo(...points[1][0]);
             context.closePath();
             context.fill();
         }
@@ -170,13 +170,6 @@ function get_adjacent_tiles(pos, level) {
         }
     }
     return res;
-}
-
-function is_colliding(victim, perp) {
-    return (victim.x + victim.width) > perp.x &&
-           victim.x < (perp.x + perp.width) &&
-           (victim.y + victim.height) > perp.y &&
-           victim.y < (perp.y + perp.height);
 }
 
 function press(event) {
