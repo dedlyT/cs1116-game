@@ -86,6 +86,55 @@ class Vector {
     }
 }
 
+class RelativeVector extends Vector {
+    #inversion_multiplier
+    constructor() {
+        let bound_j;
+        let relative_i;
+        let relative_j
+        switch (arguments.length) {
+            case 4:
+                bound_j = arguments[1];
+                relative_i = arguments[2];
+                relative_j = arguments[3];
+                break;
+            case 3:
+                bound_j = arguments[1];
+                relative_i = arguments[2];
+                relative_j = arguments[2];
+                break;
+            case 2:
+                bound_j = arguments[0];
+                relative_i = arguments[1];
+                relative_j = arguments[1];
+                break;
+        }
+
+        super();
+        this.bound_vector_i = arguments[0];
+        this.bound_vector_j = bound_j;
+        this.relative_vector_i = relative_i;
+        this.relative_vector_j = relative_j;
+        this.#inversion_multiplier = new Vector(1,1);
+    }
+
+    get i() { return this.bound_vector_i.i + (this.#inversion_multiplier.i * this.relative_vector_i.i); }
+    set i(_) { return; }
+    
+    get j() { return this.bound_vector_j.j + (this.#inversion_multiplier.j * this.relative_vector_j.j); }
+    set j(_) { return; }
+
+    get bound_i() { return this.bound_vector_i.i; }
+    get bound_j() { return this.bound_vector_j.j; }
+
+    get relative_i() { return this.relative_vector_i.i; }
+    get relative_j() { return this.relative_vector_j.j; }
+
+    set invert(value) { this.#inversion_multiplier = (value) ? new Vector(-1, -1) : new Vector(1, 1); }
+    set invert_i(value) { this.#inversion_multiplier.i = (value) ? -1 : 1; }
+    set invert_j(value) { this.#inversion_multiplier.j = (value) ? -1 : 1; }
+}
+
 class Line {
     constructor(slope, yintercept, is_vertical=false, x=undefined) {
         if (!is_vertical) {
@@ -176,4 +225,4 @@ function is_colliding(victim, perp) {
            victim.y < (perp.y + perp_dimensions[1]);
 }
 
-export { Vector, Line, randint, is_colliding }
+export { Vector, RelativeVector, Line, randint, is_colliding }

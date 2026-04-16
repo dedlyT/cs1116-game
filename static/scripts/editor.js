@@ -1,5 +1,6 @@
-import { Vector, is_colliding } from "./mymath.js";
+import { Vector, RelativeVector, is_colliding, randint } from "./mymath.js";
 import { Level, TILES } from "./levels.js";
+import { UICanvas, Element, Text, Button, TextBox } from "./ui.js";
 
 let canvas;
 let context;
@@ -10,38 +11,19 @@ const INTERVAL = 1000 / FPS;
 let last = Date.now();
 
 let current_level;
-let current_name = "";
 const LAYERS = ["background", "middleground", "foreground"];
 const LEGAL_CHARS = "abcdefghijklmnopqrstuvwxyz_"
-let current_layer = 0;
+let current_layer = "background";
 let current_tile = TILES.woodwall.name;
 let show_all_layers = true;
 let relative_tilesize = 25;
 let relative_offset = new Vector();
 
+let main_menu;
+let dropdown_menu;
+let edit_menu;
+
 const mouse = {lclick: false, rclick: false, pos: null};
-const ui_bounds = {
-    layer: [new Vector(5,5), new Vector()],
-    view_all: [new Vector(), new Vector()],
-    open_edit_menu: [new Vector(), new Vector()],
-    dropdown: [new Vector(5), new Vector()],
-    dropdown_items: [],
-    close_edit_menu: [new Vector(), new Vector()],
-    level_name: [new Vector(), new Vector()],
-    export: [new Vector(), new Vector()],
-    import: [new Vector(), new Vector()]
-};
-const ui_settings = {
-    dropdown_open: false,
-    dropdown_page: 0,
-    dropdown_max: 20,
-    edit_menu_open: false,
-    editing_name: false,
-    editing_name_cursor_shown: false,
-    editing_name_cursor_blink_interval: 1250, 
-    editing_name_cursor_blink_accumulator: 0,
-    name_max_length: 20
-};
 
 document.addEventListener("DOMContentLoaded", init, false);
 
@@ -49,7 +31,10 @@ function init() {
     canvas = document.querySelector("canvas");
     context = canvas.getContext("2d");
 
-    current_level = new Level();
+    current_level = new Level(context);
+    create_dropdown_menu();
+    create_edit_menu();
+    create_main_menu();
 
     window.addEventListener("mousemove", mousemove, false);
     window.addEventListener("mousedown", click, false);
@@ -59,18 +44,249 @@ function init() {
     draw();
 }
 
+function create_dropdown_menu() {
+    dropdown_menu = new UICanvas();
+    dropdown_menu.set("page", new UICanvas());
+    dropdown_menu.enabled = false;
+}
+    
+function generate_dropdown_page(page) {
+    let element;
+    const page_canvas = dropdown_menu.get("page");
+    const MAX_PER_PAGE = 20;
+    let last_tile;
+    let i=-1;
+    for (let tile in TILES) {
+        i++;
+        if (i < MAX_PER_PAGE * page) continue;
+        if (i > MAX_PER_PAGE + MAX_PER_PAGE * page) break;
+
+        let vectors;
+        if (last_tile === undefined) {
+            vectors = [
+                main_menu.get("layer_select").bounds[0], 
+                main_menu.get("tile_dropdown").bounds[1]
+            ];
+        } else {
+            vectors = page_canvas.get(last_tile).bounds;
+        }
+
+        element = new Button(
+            context,
+            new RelativeVector(vectors[0], vectors[1], new Vector(0,5)),
+            "darkslateblue",
+            tile,
+            "15px Arial",
+            "azure",
+            new Vector(10,10)          
+        );
+        element.on_click(self => {
+            const last_tile = dropdown_menu.get("page").get(current_tile);
+            last_tile.text_colour = "azure";
+            last_tile.set_outline("rgb(0,0,0,0)");
+            current_tile = self.text;
+            self.text_colour = "plum";
+            self.set_outline("plum", 2);
+        });
+        if (tile === current_tile) {
+            element.text_colour = "plum";
+            element.set_outline("plum", 2);
+        }
+        page_canvas.set(tile, element);
+        last_tile = tile;
+    }
+    return page_canvas;
+}
+
+function create_edit_menu() {
+    let element;
+    edit_menu = new UICanvas();
+    edit_menu.enabled = false;
+
+    element = new Element(
+        context,
+        new Vector(),
+        new Vector(canvas.width, canvas.height),
+        "rgb(0,0,0,0.5)"
+    );
+    edit_menu.set("dimming_box", element);
+
+    element = new Element(
+        context,
+        new Vector(50, 150),
+        new Vector(canvas.width - 100, canvas.height - 500),
+        "lightcoral"
+    );
+    element.set_outline("indianred", 8);
+    edit_menu.set("background", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            edit_menu.get("background").bounds[1],
+            edit_menu.get("background").bounds[0],
+            new Vector(-40,10)
+        ),
+        "azure",
+        "x",
+        "bold 30px monospace",
+        "indianred",
+        new Vector(10,5),
+        new Vector(0,-2.5)
+    );
+    element.pos.x -= element.text_dimensions.x
+    element.set_outline("indianred", 2);
+    element.on_click(_ => edit_menu.enabled = false);
+    edit_menu.set("close", element);
+
+    element = new TextBox(
+        context,
+        new RelativeVector(
+            edit_menu.get("background").bounds[0],
+            edit_menu.get("background").bounds[0],
+            new Vector(50,25)
+        ),
+        new RelativeVector(
+            edit_menu.get("close").bounds[0],
+            new Vector(),
+            new Vector()
+        ),
+        "40px monospace",
+        "azure",
+        "indianred",
+        undefined,
+        "insert name...",
+        "lightcoral"
+    );
+    element.dimensions.relative_vector_i = new RelativeVector(
+        element.bounds[0], 
+        new Vector(50)
+    );
+    element.dimensions.invert_i = true;
+    element.dimensions.bound_vector_j = new RelativeVector(
+        element.text_dimensions,
+        new Vector(0,15)
+    );
+    edit_menu.set("level_name", element);
+
+    element = new Text(
+        context,
+        new RelativeVector(
+            edit_menu.get("level_name").bounds[0],
+            edit_menu.get("level_name").bounds[1],
+            new Vector()
+        ),
+        "0/20",
+        "15px monospace",
+        "indianred"
+    );
+    element.pos.relative_vector_j = new RelativeVector(
+        element.text_dimensions,
+        new Vector(0,5)
+    );
+    edit_menu.set("level_name_length", element);
+}
+
+function create_main_menu() {
+    let element;
+    main_menu = new UICanvas();
+    
+    element = new Button(
+        context,
+        new Vector(5,5),
+        "darkorchid",
+        current_layer,
+        "15px Arial",
+        "white",
+        new Vector(10,10)
+    );
+    element.on_click(self => {
+        let i = (LAYERS.indexOf(current_layer) + 1) % LAYERS.length; 
+        current_layer = LAYERS[i];
+        self.text = current_layer;
+    });
+    main_menu.set("layer_select", element);
+
+    show_all_layers = true;
+    element = new Button(
+        context,
+        new RelativeVector(
+            main_menu.get("layer_select").bounds[1],
+            main_menu.get("layer_select").bounds[0],
+            new Vector(5,2)
+        ),
+        "darkmagenta",
+        "𓁹",
+        "15px Arial",
+        "white",
+        new Vector(5,5),
+        new Vector(0,-1.5)
+    );
+    element.set_outline("darkmagenta", 2);
+    element.on_click(self => {
+        show_all_layers = !show_all_layers;
+        self.text = (show_all_layers) ? "𓁹" : "𓂃";
+        self.colour = (show_all_layers) ? "darkmagenta" : "azure";
+        self.text_colour = (show_all_layers) ? "azure" : "darkmagenta";
+        self.offset = (show_all_layers) ? new Vector(0,-1.5) : new Vector(0,-3.5);
+    });
+    main_menu.set("layer_view", element);
+
+    edit_menu.enabled = false;
+    element = new Button(
+        context,
+        new RelativeVector(
+            main_menu.get("layer_view").bounds[1],
+            main_menu.get("layer_select").bounds[0],
+            new Vector(5,1)
+        ),
+        "mediumvioletred",
+        "✎",
+        "15px Arial",
+        "azure",
+        new Vector(7,7)
+    );
+    element.on_click(self => edit_menu.enabled = true);
+    main_menu.set("level_edit", element);
+
+    dropdown_menu.enabled = false;
+    element = new Button(
+        context,
+        new RelativeVector(
+            main_menu.get("layer_select").bounds[0],
+            main_menu.get("layer_select").bounds[1],
+            new Vector(0,5)
+        ),
+        "blueviolet",
+        "˯",
+        "30px Arial",
+        "azure",
+        new Vector(10),
+        new Vector(0,-14)
+    );
+    element.set_outline("blueviolet", 2);
+    element.on_click(self => {
+        dropdown_menu.enabled = !dropdown_menu.enabled;
+        self.text = "˯";
+        self.text_colour = "azure";
+        self.colour = "blueviolet";
+    
+        if (dropdown_menu.enabled) {
+            self.text = "˰";
+            self.text_colour = "blueviolet";
+            self.colour = "azure";
+            dropdown_menu.set("page", generate_dropdown_page(0));
+        }
+    });
+    main_menu.set("tile_dropdown", element);
+}
+
 function draw() {
     request = window.requestAnimationFrame(draw);
     let current = Date.now();
     let elapsed = current - last;
 
-    if (ui_settings.editing_name) {
-        ui_settings.editing_name_cursor_blink_accumulator += elapsed;
-        if (ui_settings.editing_name_cursor_blink_accumulator >= ui_settings.editing_name_cursor_blink_interval) {
-            ui_settings.editing_name_cursor_blink_accumulator = 0;
-            ui_settings.editing_name_cursor_shown = !ui_settings.editing_name_cursor_shown;
-        }
-    }
+    edit_menu.get("level_name").cursor_accumulator(elapsed);
 
     if (elapsed <= INTERVAL) return;
     last = current - (elapsed % INTERVAL);;
@@ -81,11 +297,11 @@ function draw() {
     
     //draw layers
     for (let layer of LAYERS) {
-        if (show_all_layers) current_level.draw_layer(context, layer);
+        if (show_all_layers) current_level.draw_layer(layer);
 
         //draw edit grid lines
-        if (layer == LAYERS[current_layer]) {
-            if (!show_all_layers) current_level.draw_layer(context, layer);
+        if (layer == current_layer) {
+            if (!show_all_layers) current_level.draw_layer(layer);
             let max_col_tiles = Math.floor(canvas.height / relative_tilesize);
             let max_row_tiles = Math.floor(canvas.width / relative_tilesize);
             
@@ -103,184 +319,10 @@ function draw() {
             context.stroke();
         }
     }
-    
-    let dimensions = new Vector();
-    let text_size;
 
-    //current layer button
-    context.fillStyle = "darkorchid";
-    context.font = "15px Arial";
-    text_size = context.measureText(LAYERS[current_layer]);
-    dimensions.x = text_size.width+10;
-    dimensions.y = text_size.hangingBaseline+10;
-    ui_bounds.layer[1].x = ui_bounds.layer[0].x + dimensions.x;
-    ui_bounds.layer[1].y = ui_bounds.layer[0].y + dimensions.y;
-    context.fillRect(...ui_bounds.layer[0], ...dimensions);
-    context.fillStyle = "white";
-    context.fillText(LAYERS[current_layer], ui_bounds.layer[0].x+5, ui_bounds.layer[0].y + text_size.hangingBaseline + 4);
-    
-    //view layers button
-    ui_bounds.view_all[0].x = ui_bounds.layer[1].x+5;
-    ui_bounds.view_all[0].y = ui_bounds.layer[0].y+2;
-    let view_all_text = (show_all_layers) ? "𓁹" : "𓂃";
-    context.fillStyle = (show_all_layers) ? "darkmagenta" : "azure";
-    text_size = context.measureText(view_all_text);
-    dimensions.x = text_size.width+5;
-    dimensions.y = text_size.hangingBaseline+5;
-    context.fillRect(...ui_bounds.view_all[0], ...dimensions);
-    context.strokeStyle = "darkmagenta";
-    context.lineWidth = 2;
-    context.strokeRect(...ui_bounds.view_all[0], ...dimensions);
-    context.fillStyle = (show_all_layers) ? "azure" : "darkmagenta";
-    context.fillText(
-        view_all_text, 
-        ui_bounds.view_all[0].x+2.5, 
-        ui_bounds.view_all[0].y + text_size.hangingBaseline + (show_all_layers ? 1 : -1));
-    ui_bounds.view_all[1].x = ui_bounds.view_all[0].x + dimensions.x;
-    ui_bounds.view_all[1].y = ui_bounds.view_all[0].y + dimensions.y;
-
-    //edit level data button
-    ui_bounds.open_edit_menu[0].x = ui_bounds.view_all[1].x+5;
-    ui_bounds.open_edit_menu[0].y = ui_bounds.layer[0].y+1;
-    text_size = context.measureText("✎");
-    dimensions.x = text_size.width+7;
-    dimensions.y = text_size.hangingBaseline+7;
-    context.fillStyle = "mediumvioletred";
-    context.fillRect(...ui_bounds.open_edit_menu[0], ...dimensions);
-    context.fillStyle = "azure";
-    context.fillText("✎", ui_bounds.open_edit_menu[0].x+3, ui_bounds.open_edit_menu[0].y + text_size.hangingBaseline + 4);
-    ui_bounds.open_edit_menu[1].x = ui_bounds.open_edit_menu[0].x + dimensions.x;
-    ui_bounds.open_edit_menu[1].y = ui_bounds.open_edit_menu[0].y + dimensions.y;
-
-    //dropdown button
-    context.font = "30px Arial";
-    let dropdown_text = (ui_settings.dropdown_open) ? "˰" : "˯";
-    let dropdown_colour = (ui_settings.dropdown_open) ? "azure" : "blueviolet";
-    let dropdown_text_colour = (ui_settings.dropdown_open) ? "blueviolet" : "azure";
-    text_size = context.measureText(dropdown_text);
-    context.fillStyle = dropdown_colour;
-    context.strokeStyle = "blueviolet";
-    context.lineWidth = 2;
-    ui_bounds.dropdown[0].y = ui_bounds.layer[1].y+5;
-    dimensions.x = text_size.width+10;
-    dimensions.y = text_size.hangingBaseline;
-    ui_bounds.dropdown[1].x = ui_bounds.dropdown[0].x + dimensions.x;
-    ui_bounds.dropdown[1].y = ui_bounds.dropdown[0].y + dimensions.y;
-    context.fillRect(...ui_bounds.dropdown[0], ...dimensions);
-    context.strokeRect(...ui_bounds.dropdown[0], ...dimensions);
-    context.fillStyle = dropdown_text_colour;
-    context.fillText(dropdown_text, ui_bounds.dropdown[0].x+5, ui_bounds.dropdown[0].y+8);
-
-    //dropdown items (tiles)
-    if (ui_settings.dropdown_open) {
-        context.font = "15px Arial";
-        let current_pos = new Vector(ui_bounds.dropdown[0].x, ui_bounds.dropdown[1].y+5);
-        let i=0;
-        for (let tile in TILES) {
-            if (i < ui_settings.dropdown_page * ui_settings.dropdown_max) return;
-            if (i > ui_settings.dropdown_max + ui_settings.dropdown_page * ui_settings.dropdown_max) break;
-
-            text_size = context.measureText(tile);
-            dimensions.x = text_size.width + 10;
-            dimensions.y = text_size.hangingBaseline + 10;
-            context.fillStyle = "darkslateblue";
-            context.fillRect(...current_pos, ...dimensions);
-
-            context.fillStyle = "azure";
-            if (tile === current_tile) {
-                context.strokeStyle = "plum";
-                context.lineWidth = 2;
-                context.strokeRect(...current_pos, ...dimensions);
-                context.fillStyle = "plum";
-            }
-            context.fillText(tile, current_pos.x+5, current_pos.y+15);
-
-            ui_bounds.dropdown_items.push([ new Vector(...current_pos), 
-                                            new Vector(current_pos.x + dimensions.x, current_pos.y + dimensions.y),
-                                            tile ]);
-            current_pos.y += dimensions.y + 5;
-            i++;
-        }
-    }
-
-    if (ui_settings.edit_menu_open) {
-        //black dimming background
-        context.fillStyle = "rgb(0,0,0,0.5)";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        //main window
-        context.fillStyle = "lightcoral";
-        dimensions.x = canvas.width-100;
-        dimensions.y = canvas.height-500;
-        const edit_menu_pos = new Vector(50, 150);
-        const edit_menu_dimensions = new Vector(...dimensions);
-        context.fillRect(...edit_menu_pos, ...dimensions);
-        context.strokeStyle = "indianred"
-        context.lineWidth = 8;
-        context.strokeRect(...edit_menu_pos, ...dimensions);
-
-        //close button
-        context.font = "bold 30px monospace";
-        text_size = context.measureText("x");
-        ui_bounds.close_edit_menu[0].x = edit_menu_pos.x + edit_menu_dimensions.x - text_size.width - 20;
-        ui_bounds.close_edit_menu[0].y = edit_menu_pos.y + 10;
-        dimensions.x = text_size.width + 10;
-        dimensions.y = text_size.hangingBaseline + 5;
-        context.fillStyle = "azure";
-        context.fillRect(...ui_bounds.close_edit_menu[0], ...dimensions);
-        context.lineWidth = 2;
-        context.strokeRect(...ui_bounds.close_edit_menu[0], ...dimensions);
-        context.fillStyle = "indianred";
-        context.fillText("x", ui_bounds.close_edit_menu[0].x+5, ui_bounds.close_edit_menu[0].y + text_size.hangingBaseline);
-        ui_bounds.close_edit_menu[1].x = ui_bounds.close_edit_menu[0].x + dimensions.x;
-        ui_bounds.close_edit_menu[1].y = ui_bounds.close_edit_menu[0].y + dimensions.y;
-
-        //level name text box
-        ui_bounds.level_name[0].x = edit_menu_pos.x + 50;
-        ui_bounds.level_name[0].y = edit_menu_pos.y + 25;
-        context.font = "40px monospace";
-        text_size = context.measureText(LEGAL_CHARS + "|");
-        dimensions.x = (edit_menu_dimensions.x - dimensions.x - 100);
-        dimensions.y = text_size.hangingBaseline + 15;
-        context.fillRect(...ui_bounds.level_name[0], ...dimensions);
-        let shown_text = current_name;
-        context.fillStyle = "azure";
-        if (!ui_settings.editing_name && current_name === "") {
-            shown_text = "insert name...";
-            context.fillStyle = "lightcoral";
-        }
-        context.fillText(
-            shown_text, 
-            ui_bounds.level_name[0].x+5, 
-            ui_bounds.level_name[0].y + text_size.hangingBaseline + 7.5
-        );
-        
-        if (ui_settings.editing_name && ui_settings.editing_name_cursor_shown) {
-            //cursor in text box
-            text_size = context.measureText(shown_text);
-            context.font = "38px monospace";
-            context.fillStyle = "lightcoral";
-            context.fillText(
-                "|",
-                ui_bounds.level_name[0].x + text_size.width,
-                ui_bounds.level_name[0].y + text_size.hangingBaseline + 2
-            );
-        }
-
-        ui_bounds.level_name[1].x = ui_bounds.level_name[0].x + dimensions.x;
-        ui_bounds.level_name[1].y = ui_bounds.level_name[0].y + dimensions.y;
-
-        //level name max length text
-        context.font = "15px monospace";
-        let length_text = `${current_name.length}/${ui_settings.name_max_length}`;
-        text_size = context.measureText(length_text);
-        context.fillStyle = "indianred";
-        context.fillText(
-            length_text,
-            ui_bounds.level_name[0].x,
-            ui_bounds.level_name[1].y + text_size.hangingBaseline + 5
-        );
-    }
+    main_menu.draw();
+    dropdown_menu.draw();
+    edit_menu.draw();
 }
 
 function mousemove(event) {
@@ -302,66 +344,21 @@ function mousemove(event) {
     let tile_y = Math.floor(mouse.pos.y / relative_tilesize);
 
     if (mouse.lclick) {
-        current_level[LAYERS[current_layer]][tile_y][tile_x] = current_tile;
+        current_level[current_layer][tile_y][tile_x] = current_tile;
     }
     if (mouse.rclick) {
-        current_level[LAYERS[current_layer]][tile_y][tile_x] = TILES.empty.name;
-    }
-}
-
-function click_UI() {
-    if (mouse.pos === null) return;
-
-    const generate_box = (bounds) => { return { x:bounds[0].x, y:bounds[0].y, 
-                                        width:bounds[1].x - bounds[0].x, height:bounds[1].y - bounds[0].y} };
-    
-    const mouse_pos = mouse.pos;
-
-    if (ui_settings.edit_menu_open) { 
-        if (is_colliding(mouse_pos, generate_box(ui_bounds.close_edit_menu))) {
-            ui_settings.edit_menu_open = false;
-        }
-
-        if (is_colliding(mouse_pos, generate_box(ui_bounds.level_name))) {
-            ui_settings.editing_name = true;
-            ui_settings.editing_name_cursor_shown = true;
-            ui_settings.editing_name_cursor_blink_accumulator = 0;
-        } else {
-            ui_settings.editing_name = false;
-        }
-
-        return true;
-    }
-
-    if (is_colliding(mouse_pos, generate_box(ui_bounds.layer))) {
-        current_layer = (current_layer + 1) % LAYERS.length;
-    }
-
-    if (is_colliding(mouse_pos, generate_box(ui_bounds.view_all))) {
-        show_all_layers = !show_all_layers;
-    }
-
-    if (is_colliding(mouse_pos, generate_box(ui_bounds.open_edit_menu))) {
-        ui_settings.edit_menu_open = true;
-    }
-
-    if (is_colliding(mouse_pos, generate_box(ui_bounds.dropdown))) {
-        ui_settings.dropdown_open = !ui_settings.dropdown_open;
-        return true;
-    }
-
-    for (let bounds of ui_bounds.dropdown_items) {
-        if (is_colliding(mouse_pos, generate_box(bounds))) {
-            current_tile = bounds[2];
-            return true;
-        }
+        current_level[current_layer][tile_y][tile_x] = TILES.empty.name;
     }
 }
 
 function click(event) {
     event.preventDefault();
 
-    let has_clicked_ui = click_UI();
+    let has_clicked_ui;
+    has_clicked_ui = edit_menu.check_collisions(mouse.pos);
+    if (edit_menu.enabled) return;
+    has_clicked_ui = has_clicked_ui || main_menu.check_collisions(mouse.pos)
+    has_clicked_ui = has_clicked_ui || dropdown_menu.get("page").check_collisions(mouse.pos);
     if (has_clicked_ui) return;
 
     switch (event.button) {
@@ -391,21 +388,22 @@ function unclick(event) {
 function press(event) {
     event.preventDefault();
 
-    let key = event.key.toLowerCase();
+    const key = event.key.toLowerCase();
+    const level_name_textbox = edit_menu.get("level_name")
 
-    if (ui_settings.editing_name) {
-        if (LEGAL_CHARS.includes(key) && current_name.length < ui_settings.name_max_length) {
-            current_name += key;
-            return;
+    if (edit_menu.enabled && level_name_textbox.editing) {
+        if (LEGAL_CHARS.includes(key) && level_name_textbox.value.length < 20) {
+            level_name_textbox.value += key;
         }
         switch (key) {
             case "backspace":
-                current_name = current_name.slice(0, current_name.length - 1);
+                level_name_textbox.value = level_name_textbox.value.slice(0, level_name_textbox.value.length - 1);
                 break;
             case "enter":
-                ui_settings.editing_name = false;
+                level_name_textbox.editing = false;
                 break;
         }
+        edit_menu.get("level_name_length").text = `${level_name_textbox.value.length}/20`;
     }
 }
 

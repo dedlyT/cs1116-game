@@ -26,7 +26,9 @@ function generate_matrix(width, height, element) {
 }
 
 class Level {
-    constructor(width=30, height=30) {
+    constructor(context, width=30, height=30) {
+        this.context = context;
+
         this.background = generate_matrix(width, height, TILES.grass.name);
 
         this.middleground = [];
@@ -45,18 +47,18 @@ class Level {
         this.spawn = new Vector(5*this.tilesize, 5*this.tilesize);
     }
 
-    draw_layer(context, layer) {
+    draw_layer(layer) {
         let matrix = this[layer];
         if (matrix === undefined) throw Error("layer is invalid!");
         
         for (let [r, row] of matrix.entries()) {
             for (let [c, name] of row.entries()) {
-                this.draw_tile(context, name, c*this.tilesize, r*this.tilesize, this.tilesize)
+                this.draw_tile(name, c*this.tilesize, r*this.tilesize, this.tilesize)
             }
         }
     }
 
-    draw_layer_attribute(context, layer, attribute, should_have=true) {
+    draw_layer_attribute(layer, attribute, should_have=true) {
         let matrix = this[layer];
         if (matrix === undefined) throw Error("layer is invalid!");
 
@@ -65,22 +67,22 @@ class Level {
                 let tile_attr = TILES[name][attribute];
                 if (should_have && tile_attr === undefined) { continue; }
                 if (!should_have && tile_attr !== undefined) { continue; }
-                this.draw_tile(context, name, c*this.tilesize, r*this.tilesize, this.tilesize);
+                this.draw_tile(name, c*this.tilesize, r*this.tilesize, this.tilesize);
             }
         }
     }
 
-    draw_tile(context, tile_name, x, y, tilesize) {
+    draw_tile(tile_name, x, y, tilesize) {
         let tile_data = TILES[tile_name]
         if (tile_data.should_ignore === true) return;
         
         if (tile_data.src === undefined) {
             if (tile_data.alpha !== undefined) {
-                context.globalAlpha = tile_data.alpha;
+                this.context.globalAlpha = tile_data.alpha;
             }
-            context.fillStyle = tile_data.colour;
-            context.globalAlpha = 1.0;
-            context.fillRect(x, y, tilesize, tilesize);   
+            this.context.fillStyle = tile_data.colour;
+            this.context.globalAlpha = 1.0;
+            this.context.fillRect(x, y, tilesize, tilesize);   
         }
     }
 
