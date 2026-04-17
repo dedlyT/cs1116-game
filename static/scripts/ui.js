@@ -86,6 +86,9 @@ class Element {
             )
         ];
     }
+    
+    get padding() { return this.#padding; }
+    set padding(value) { this.#padding = value; }
 }
 
 class Text extends Element {

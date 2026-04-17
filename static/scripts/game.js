@@ -1,12 +1,14 @@
-import { Vector, Line, is_colliding, randint } from "./mymath.js";
+import { Vector, Line, is_colliding, randint, RelativeVector } from "./mymath.js";
 import { Entity } from "./player.js";
 import { LEVELS, TILES } from "./levels.js";
+import { UICanvas, Element, Text } from "./ui.js";
 
 let canvas;
 let context;
 let request;
 let current_level;
 let bounding_rect;
+const HUD = new UICanvas();
 
 const FPS = 60;
 const INTERVAL = 1000 / FPS;
@@ -15,7 +17,8 @@ let last = Date.now();
 
 const RESOLVE_X = (entity, old, x) => (old.x <= x) ? (x - entity.width - 0.01) : (x + TILESIZE + 0.01);
 const RESOLVE_Y = (entity, old, y) => (old.y <= y) ? (y - entity.height - 0.01) : (y + TILESIZE + 0.01);
-const plr = new Entity(undefined, new Vector(), new Vector(25, 25), 150);
+let move_camera_rect = new Vector(100, 100);
+const plr = new Entity(undefined, new Vector(), new Vector(25, 25), 200);
 let enemies = [];
 let bullets = [];
 const actions = {
@@ -33,23 +36,82 @@ function init() {
     canvas = document.querySelector("canvas");
     bounding_rect = canvas.getBoundingClientRect();
     context = canvas.getContext("2d");
+
     plr.context = context;
+    plr.immunity_accumulator = 0;
+    plr.immunity_timeout = 100;
+    plr.immune = true;
 
     const levels = Object.keys(LEVELS);
     current_level = LEVELS[levels[randint(0, levels.length-1)]];
     current_level.context = context;
-    plr.coords = current_level.spawn;
+    plr.coords.x = current_level.spawn.x;
+    plr.coords.y = current_level.spawn.y;
     load_level(current_level);
+
+    create_hud();
 
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
     draw();
 }
 
+function create_hud() {
+    let element;
+    const HP = new UICanvas();
+
+    element = new Element(
+        context,
+        new Vector(),
+        new Vector(),
+        "lightgreen"
+    );
+    HP.set("background", element);
+
+    element = new Element(
+        context,
+        new Vector(),
+        new Vector(),
+        "darkgrey"
+    );
+    HP.set("foreground", element);
+
+    element = new Element(
+        context,
+        new Vector(10, 10),
+        new Vector(400, 30)
+    );
+    element.set_outline("white", 2);
+    HP.set("outline", element);
+
+    HP.get("background").pos = new RelativeVector(
+        HP.get("outline").bounds[0],
+        new Vector()
+    );
+    HP.get("background").dimensions.y = HP.get("outline").dimensions.y;
+    HP.get("foreground").pos = new RelativeVector(
+        HP.get("background").bounds[1],
+        HP.get("background").bounds[0],
+        new Vector()
+    );
+    HP.get("foreground").dimensions.y = HP.get("outline").dimensions.y;
+
+    HUD.set("hp", HP);
+}
+
 function draw() {
     request = window.requestAnimationFrame(draw);
     let current = Date.now();
     let elapsed = current - last;
+
+    if (plr.immune) {
+        plr.immunity_accumulator += elapsed;
+        if (plr.immunity_accumulator >= plr.immunity_timeout) {
+            plr.immunity_accumulator = 0;
+            plr.immune = false;
+        }
+    }
+
     let dT = elapsed / 1000;
     if (elapsed <= INTERVAL) return;
     last = current - (elapsed % INTERVAL);
@@ -65,6 +127,13 @@ function draw() {
     const enemies_clone = [...enemies];
     for (const enemy of enemies_clone) {
         enemy.draw();
+        if (enemy.health !== 100) {
+            const HP = enemy.hp_hud;
+            const health_percentage = (enemy.health / 100);
+            HP.get("background").dimensions.x = HP.get("outline").dimensions.x * health_percentage;
+            HP.get("foreground").dimensions.x = HP.get("outline").dimensions.x * (1 - health_percentage);
+            HP.draw();
+        }
     }
 
     const bullets_clone = [...bullets];
@@ -76,11 +145,64 @@ function draw() {
     current_level.draw_layer_attribute("middleground", "persistent");
     plr.draw();
     current_level.draw_layer("foreground");
+
+    const HP = HUD.get("hp");
+    const health_percentage = (plr.health / 100);
+    HP.get("background").dimensions.x = HP.get("outline").dimensions.x * health_percentage;
+    HP.get("foreground").dimensions.x = HP.get("outline").dimensions.x * (1 - health_percentage);
+
+    HUD.draw();
 }
 
 function load_level(level) {
     for (const enemy_spawn of level.enemy_spawns) {
-        enemies.push(new Entity(context, enemy_spawn, new Vector(25,25), randint(100,150), "red"));
+        const enemy = new Entity(context, enemy_spawn, new Vector(25,25), randint(100,150), "red");
+
+        let element;
+        enemy.hp_hud = new UICanvas();
+        element = new Element(
+            context,
+            new Vector(),
+            new Vector(),
+            "lightgreen"
+        );
+        enemy.hp_hud.set("background", element);
+
+        element = new Element(
+            context,
+            new Vector(),
+            new Vector(),
+            "darkgrey"
+        );
+        enemy.hp_hud.set("foreground", element);
+
+        element = new Element(
+            context,
+            new RelativeVector(
+                enemy.coords,
+                new Vector(
+                    -enemy.width,
+                    -enemy.height
+                )
+            ),
+            new Vector(75, 10)
+        );
+        element.set_outline("white", 2);
+        enemy.hp_hud.set("outline", element);
+
+        enemy.hp_hud.get("background").pos = new RelativeVector(
+            enemy.hp_hud.get("outline").bounds[0],
+            new Vector()
+        );
+        enemy.hp_hud.get("background").dimensions.y = enemy.hp_hud.get("outline").dimensions.y;
+        enemy.hp_hud.get("foreground").pos = new RelativeVector(
+            enemy.hp_hud.get("background").bounds[1],
+            enemy.hp_hud.get("background").bounds[0],
+            new Vector()
+        );
+        enemy.hp_hud.get("foreground").dimensions.y = enemy.hp_hud.get("outline").dimensions.y;
+
+        enemies.push(enemy);
     }
 }
 
@@ -115,24 +237,27 @@ function calculate_enemies(dT) {
         const displacement = enemy.facing;
         displacement.set_length(enemy.speed);
 
-        if (is_colliding(plr, enemy)) {
+        if (is_colliding(plr, enemy) && !plr.immune) {
             plr.health -= randint(4,8);
+            plr.health = (plr.health < 0) ? 0 : plr.health;
+            plr.immune = true;
+            plr.immunity_accumulator = 0;
             if (plr.health <= 0) {
-                console.log("DEAD");
             }
         }
 
         resolve_axis_collision(enemy, "x", displacement.x, dT, old, RESOLVE_X);
         resolve_axis_collision(enemy, "y", displacement.y, dT, old, RESOLVE_Y);
 
-        let KILL_FLAG = false;
         let dead_bullet_indexes = [];
         const bullets_clone = [...bullets];
         for (const [ii, bullet] of bullets_clone.entries()) {
             if (is_colliding(enemy, bullet)) {
-                KILL_FLAG = true;
                 dead_bullet_indexes.push(ii);
-                dead_enemy_indexes.push(i);
+                enemy.health -= 20;
+                if (enemy.health <= 0) {
+                    dead_enemy_indexes.push(i);
+                }
                 continue;
             }
         }
@@ -141,7 +266,6 @@ function calculate_enemies(dT) {
                 return value;
             }
         })
-        if (KILL_FLAG) continue;
     }
     enemies = enemies.filter((value, index) => {
         if (!dead_enemy_indexes.includes(index)) {
@@ -165,7 +289,7 @@ function calculate_player(dT) {
     resolve_axis_collision(plr, "x", displacement.x, dT, old, RESOLVE_X);
     resolve_axis_collision(plr, "y", displacement.y, dT, old, RESOLVE_Y);
 
-    plr.face(actions.mouse);
+    plr.face(actions.mouse); 
 }
 
 function resolve_axis_collision(entity, axis, displacement_component, dT, old, resolution_lambda) {
@@ -202,8 +326,12 @@ function draw_fov() {
             if (c === 0 || c === (vision_mask[0].length-1)) { continue; }
             if (item === 0) { continue; }
             let tile = new Vector(c*TILESIZE, r*TILESIZE);
-            let vertices = [new Vector(tile.x, tile.y), new Vector(tile.x+TILESIZE, tile.y), new 
-                Vector(tile.x, tile.y+TILESIZE), new Vector(tile.x+TILESIZE, tile.y+TILESIZE)];
+            let vertices = [
+                new Vector(tile.x, tile.y), 
+                new Vector(tile.x+TILESIZE, tile.y), 
+                new Vector(tile.x, tile.y+TILESIZE), 
+                new Vector(tile.x+TILESIZE, tile.y+TILESIZE)
+            ];
             let distances = vertices.map(vertex => Vector.distance_between(plr.coords, vertex));
             let max_index = distances.reduce((max_i, dist, i, arr) => (dist > arr[max_i]) ? i : max_i, 0);
             let min_index = distances.reduce((min_i, dist, i, arr) => (dist < arr[min_i]) ? i : min_i, 0);
