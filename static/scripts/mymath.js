@@ -34,7 +34,7 @@ class Vector {
         if (this.i === 0 && this.j === 0) {
             return 0;
         }
-        return Vector.angle_between(this, new Vector(0,-1));
+        return Vector.angle_between(this, new Vector());
     }
     set angle(v) {
         if (typeof v !== "number") { throw Error("v must be integer or float"); }

@@ -1,26 +1,29 @@
 import { Vector } from "./mymath.js";
 
-class Player {
-    constructor(context, pos, dimensions, default_speed) {
+class Entity {
+    #facing
+    constructor(context, coords, dimensions, default_speed, colour) {
         this.context = context;
-        this.coords = new Vector(...pos);
-        this.dimensions = new Vector(...dimensions);
-        this.angle = 0;
+        this.coords = coords;
+        this.dimensions = dimensions;
         this.default_speed = default_speed;
         this.speed = default_speed;
+        this.colour = (colour === undefined) ? "yellow" : colour;
+        this.#facing = new Vector();
+        this.health = 100;
     }
 
     draw() {
         this.context.save();
         this.context.translate(this.center.x, this.center.y);
-        this.context.rotate(this.angle);
-        this.context.fillStyle = "red";
+        this.context.rotate(Math.PI + this.angle);
+        this.context.fillStyle = this.colour;
         this.context.fillRect(-(this.width/2), -(this.height/2), this.width, this.height);
         this.context.restore();
     }
 
-    set_facing(vector) {
-        this.angle = Math.PI + Vector.angle_between(this.center, vector);
+    face(vector) {
+        this.#facing = Vector.directional_between(vector, this.center);
     }
 
     get x() { return this.coords.x; }
@@ -29,9 +32,9 @@ class Player {
     set y(v) { this.coords.y = v; }
     get width() { return this.dimensions.x; }
     get height() { return this.dimensions.y; }
-    get center() {
-        return new Vector(this.x + (this.width/2), this.y + (this.height/2));
-    }
+    get center() { return new Vector(this.x + (this.width/2), this.y + (this.height/2)); }
+    get angle() { return this.facing.angle }
+    get facing() { return new Vector(...this.#facing); }
 }
 
-export { Player }
+export { Entity }

@@ -2,10 +2,6 @@
 {% block title %}Document{% endblock %}
 
 {% block head %}
-<script>
-    // eslint-disable-next-line
-    const SCRIPT_ROOT = {{ request.script_root | tojson }}
-</script>
 <script src="{{ url_for('static', filename='scripts/game.js') }}" type="module"></script>
 <style> 
     canvas {

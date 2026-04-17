@@ -1,5 +1,7 @@
 import { Vector, randint } from "./mymath.js";
 
+let xhttp;
+
 const TILES = {
     empty: {name:"empty", should_ignore:true},
     grass: {name:"grass", colour:"green"},
@@ -122,11 +124,20 @@ class Level {
     }
 
     static import_filename(level_name) {
-        const level_filename = level_name.split(".json")[0];
-        const level_url = `${SCRIPT_ROOT}/level/${level_filename}.json`;
-        fetch(level_url)
-            .then(res => res.json())
-            .then(data => Level.import(level_filename, data) );
+        const level_filename = level_name.replace(".json", "");
+
+        let level;
+        let data = new FormData();
+        data.append("filename", `${level_filename}.json`)
+        xhttp = new XMLHttpRequest();
+        xhttp.addEventListener("readystatechange", () => {
+            if (xhttp.readyState !== 4 || xhttp.status !== 200) return;
+            level = Level.import(level_filename, JSON.parse(xhttp.responseText));
+        }, false);
+        xhttp.open("POST", "/level", false);
+        xhttp.send(data);
+
+        return level;
     }
 
     static import(name, data) {
@@ -145,12 +156,15 @@ class Level {
 }
 
 let LEVELS = {};
-fetch(`${SCRIPT_ROOT}/level/`)
-    .then(res => res.json())
-    .then(data => {
-        for (let filename of data) {
-            LEVELS[filename.replace(".json", "")] = Level.import_filename(filename);
-        }
-    });
+let levels_request = new XMLHttpRequest();
+levels_request.addEventListener("readystatechange", () => {
+    if (levels_request.readyState !== 4 || levels_request.status !== 200) return;
+    const data = JSON.parse(levels_request.responseText);
+    for (let filename of data) {
+        LEVELS[filename.replace(".json", "")] = Level.import_filename(filename);
+    }
+}, false);
+levels_request.open("GET", "/level/", false);
+levels_request.send();
 
 export { Level, LEVELS, TILES };

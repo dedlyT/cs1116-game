@@ -1,18 +1,24 @@
-import { Vector, Line, is_colliding } from "./mymath.js";
-import { Player } from "./player.js";
+import { Vector, Line, is_colliding, randint } from "./mymath.js";
+import { Entity } from "./player.js";
 import { LEVELS, TILES } from "./levels.js";
 
 let canvas;
 let context;
 let request;
+let current_level;
+let bounding_rect;
 
 const FPS = 60;
 const INTERVAL = 1000 / FPS;
 const TILESIZE = 25;
 let last = Date.now();
 
-let plr;
-let actions = {
+const RESOLVE_X = (entity, old, x) => (old.x <= x) ? (x - entity.width - 0.01) : (x + TILESIZE + 0.01);
+const RESOLVE_Y = (entity, old, y) => (old.y <= y) ? (y - entity.height - 0.01) : (y + TILESIZE + 0.01);
+const plr = new Entity(undefined, new Vector(), new Vector(25, 25), 150);
+let enemies = [];
+let bullets = [];
+const actions = {
     moving_up: false,
     moving_down: false,
     moving_left: false,
@@ -25,8 +31,16 @@ document.addEventListener("mousemove", mousemove, false);
 
 function init() {
     canvas = document.querySelector("canvas");
+    bounding_rect = canvas.getBoundingClientRect();
     context = canvas.getContext("2d");
-    plr = new Player(...LEVELS.first.spawn, ...[25, 25], 0.25);
+    plr.context = context;
+
+    const levels = Object.keys(LEVELS);
+    current_level = LEVELS[levels[randint(0, levels.length-1)]];
+    current_level.context = context;
+    plr.coords = current_level.spawn;
+    load_level(current_level);
+
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
     draw();
@@ -36,21 +50,107 @@ function draw() {
     request = window.requestAnimationFrame(draw);
     let current = Date.now();
     let elapsed = current - last;
+    let dT = elapsed / 1000;
     if (elapsed <= INTERVAL) return;
     last = current - (elapsed % INTERVAL);
 
-    calculate_movement(elapsed);
+    calculate_player(dT);
+    calculate_bullets(dT);
+    calculate_enemies(dT);
 
     context.clearRect(0, 0, canvas.width, canvas.height);
-    LEVELS.first.draw_layer(context, "background");
-    LEVELS.first.draw_layer_attribute(context, "middleground", "persistent", false);
-    draw_fov(context);
-    LEVELS.first.draw_layer_attribute(context, "middleground", "persistent");
-    plr.draw(context);
-    LEVELS.first.draw_layer(context, "foreground");
+    current_level.draw_layer("background");
+    current_level.draw_layer_attribute("middleground", "persistent", false);
+    
+    const enemies_clone = [...enemies];
+    for (const enemy of enemies_clone) {
+        enemy.draw();
+    }
+
+    const bullets_clone = [...bullets];
+    for (const bullet of bullets_clone) {
+        bullet.draw();
+    }
+
+    draw_fov();
+    current_level.draw_layer_attribute("middleground", "persistent");
+    plr.draw();
+    current_level.draw_layer("foreground");
 }
 
-function calculate_movement(dT) {
+function load_level(level) {
+    for (const enemy_spawn of level.enemy_spawns) {
+        enemies.push(new Entity(context, enemy_spawn, new Vector(25,25), randint(100,150), "red"));
+    }
+}
+
+function calculate_bullets(dT) {
+    const bullets_clone = [...bullets];
+    let dead_bullet_indexes = [];
+    for (const [i, bullet] of bullets_clone.entries()) {
+        const old = bullet.coords;
+        const displacement = bullet.facing;
+        displacement.set_length(bullet.speed);
+
+        const KILL = (_, __, ___) => { 
+            dead_bullet_indexes.push(i);
+            return 0;
+        };
+        resolve_axis_collision(bullet, "x", displacement.x, dT, old, KILL);
+        resolve_axis_collision(bullet, "y", displacement.y, dT, old, KILL);
+    }
+    bullets = bullets.filter((value, index) => {
+        if (!dead_bullet_indexes.includes(index)) {
+            return value;
+        }
+    });
+}
+
+function calculate_enemies(dT) {
+    const enemies_clone = [...enemies];
+    let dead_enemy_indexes = [];
+    for (const [i, enemy] of enemies_clone.entries()) {
+        const old = enemy.coords;
+        enemy.face(plr.coords);
+        const displacement = enemy.facing;
+        displacement.set_length(enemy.speed);
+
+        if (is_colliding(plr, enemy)) {
+            plr.health -= randint(4,8);
+            if (plr.health <= 0) {
+                console.log("DEAD");
+            }
+        }
+
+        resolve_axis_collision(enemy, "x", displacement.x, dT, old, RESOLVE_X);
+        resolve_axis_collision(enemy, "y", displacement.y, dT, old, RESOLVE_Y);
+
+        let KILL_FLAG = false;
+        let dead_bullet_indexes = [];
+        const bullets_clone = [...bullets];
+        for (const [ii, bullet] of bullets_clone.entries()) {
+            if (is_colliding(enemy, bullet)) {
+                KILL_FLAG = true;
+                dead_bullet_indexes.push(ii);
+                dead_enemy_indexes.push(i);
+                continue;
+            }
+        }
+        bullets = bullets.filter((value, index) => {
+            if (!dead_bullet_indexes.includes(index)) {
+                return value;
+            }
+        })
+        if (KILL_FLAG) continue;
+    }
+    enemies = enemies.filter((value, index) => {
+        if (!dead_enemy_indexes.includes(index)) {
+            return value;
+        }
+    })
+}
+
+function calculate_player(dT) {
     let old = plr.coords;
     let displacement = new Vector();
     if (actions.moving_up) displacement.y--;
@@ -62,36 +162,40 @@ function calculate_movement(dT) {
         displacement.set_length(plr.speed);
     }
 
-    resolve_axis_collision("x", displacement.x, dT, (x) => (old.x <= x) ? (x - plr.width - 0.01) : (x + TILESIZE + 0.01));
-    resolve_axis_collision("y", displacement.y, dT, (y) => (old.y <= y) ? (y - plr.height - 0.01) : (y + TILESIZE + 0.01));
+    resolve_axis_collision(plr, "x", displacement.x, dT, old, RESOLVE_X);
+    resolve_axis_collision(plr, "y", displacement.y, dT, old, RESOLVE_Y);
 
-    plr.set_facing(actions.mouse);
+    plr.face(actions.mouse);
 }
 
-function resolve_axis_collision(axis, displacement_component, dT, resolution_lambda) {
-    plr[axis] += displacement_component * dT;
-    let adjf = get_adjacent_tiles(plr.coords, LEVELS.first.foreground);
-    let adjm = get_adjacent_tiles(plr.coords, LEVELS.first.middleground);
-    let adj_iter = [
-        [adjf, LEVELS.first.foreground], 
-        [adjm, LEVELS.first.middleground]
+function resolve_axis_collision(entity, axis, displacement_component, dT, old, resolution_lambda) {
+    entity[axis] += displacement_component * dT;
+    const adjf = get_adjacent_tiles(entity.coords, current_level.foreground);
+    const adjm = get_adjacent_tiles(entity.coords, current_level.middleground);
+    const adj_iter = [
+        [adjf, current_level.foreground], 
+        [adjm, current_level.middleground]
     ];
 
     for (let [adj, matrix] of adj_iter) {
         for (let [r,c] of adj) {
-            if (TILES[matrix[r][c]].collidable === undefined) continue;
+            const row = matrix[r];
+            if (row === undefined) continue;
+            const tilename = row[c];
+            const tile_data = TILES[tilename];
+            if (tile_data === undefined || tile_data.collidable === undefined) continue;
             
-            let x = c*TILESIZE;
-            let y = r*TILESIZE;
-            if (is_colliding(plr, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
-                plr[axis] = resolution_lambda(axis === "x" ? x : y);
+            const x = c*TILESIZE;
+            const y = r*TILESIZE;
+            if (is_colliding(entity, {x:x, y:y, width:TILESIZE, height:TILESIZE})) {
+                entity[axis] = resolution_lambda(entity, old, axis === "x" ? x : y);
             }
         }
     }
 }
 
-function draw_fov(context) {
-    let vision_mask = LEVELS.first.vision_mask;
+function draw_fov() {
+    let vision_mask = current_level.vision_mask;
     for (let [r, row] of vision_mask.entries()) {
         if (r === 0 || r === (vision_mask.length-1)) { continue; }
         for (let [c, item] of row.entries()) {
@@ -106,8 +210,8 @@ function draw_fov(context) {
             vertices = vertices.filter( (_,i) => i !== max_index && i !== min_index );
             let points = [];
             for (let vertex of vertices) {
-                let ray = Line.from_points(plr.coords, vertex);
-                let direction = Vector.directional_between(plr.coords, vertex);
+                let ray = Line.from_points(plr.center, vertex);
+                let direction = Vector.directional_between(plr.center, vertex);
                 
                 let border_lines = [];
                 if (direction.i < 0) {
@@ -123,13 +227,9 @@ function draw_fov(context) {
                 
                 let updown = Line.get_intercept(ray, border_lines[0]);
                 let leftright = Line.get_intercept(ray, border_lines[1]);
-                console.log(direction);
-                console.log(border_lines);
-                console.log(updown, leftright);
                 let endpoint;
                 if (updown !== null && leftright !== null) {
-                    
-                    endpoint = (updown.distance_to(plr.coords) > leftright.distance_to(plr.coords)) ? updown : leftright;
+                    endpoint = (updown.distance_to(plr.center) > leftright.distance_to(plr.center)) ? updown : leftright;
                 } else {
                     endpoint = (updown === null) ? leftright : updown;
                 }
@@ -173,6 +273,7 @@ function get_adjacent_tiles(pos, level) {
 }
 
 function press(event) {
+    event.preventDefault();
     let key = event.key;
     switch (key) {
         case "w":
@@ -193,6 +294,12 @@ function press(event) {
         case "d":
         case "ArrowRight":
             actions.moving_right = true;
+            break;
+        
+        case " ":
+            const bullet = new Entity(context, plr.center, new Vector(10,10), 500, "white");
+            bullet.face(actions.mouse);
+            bullets.push(bullet);
             break;
     }
 }
@@ -224,7 +331,7 @@ function unpress(event) {
 
 function mousemove(event) {
     if (plr === null || plr === undefined) { return; }
-    actions.mouse.x = event.clientX;
-    actions.mouse.y = event.clientY;
-    plr.set_facing(actions.mouse);
+    actions.mouse.x = event.clientX - bounding_rect.left;
+    actions.mouse.y = event.clientY - bounding_rect.top;
+    plr.face(actions.mouse);
 }

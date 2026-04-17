@@ -100,14 +100,14 @@ def signup():
 
     return render_template("signup.html", f=signup_form)
 
-@app.route("/level/")
-@app.route("/level/<level_name>")
-def get_level(level_name=None):
-    if level_name is None:
+@app.route("/level/", methods=["GET", "POST"])
+def get_level():
+    if request.method == "GET":
         return os.listdir(os.path.join(app.root_path, "static/levels"))
     
+    filename = request.form["filename"]
     try:
-        with open(f"static/levels/{level_name}", "r") as f:
+        with open(f"static/levels/{filename}", "r") as f:
             data = json.load(f)
     except FileNotFoundError:
         return abort(404)
