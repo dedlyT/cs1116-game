@@ -56,6 +56,12 @@ class Vector {
         this.j = v; 
     }
 
+    //...Vector returns [i, j]
+    *[Symbol.iterator]() {
+        yield this.i;
+        yield this.j;
+    }
+
     static differential_between(v, u) {
         return new Vector(v.x - u.x, 
                           v.y - u.y);
@@ -78,6 +84,55 @@ class Vector {
     static dot_product(v, u) {
         return (v.x*u.x) + (v.y*u.y);
     }
+}
+
+class RelativeVector extends Vector {
+    #inversion_multiplier
+    constructor() {
+        let bound_j;
+        let relative_i;
+        let relative_j
+        switch (arguments.length) {
+            case 4:
+                bound_j = arguments[1];
+                relative_i = arguments[2];
+                relative_j = arguments[3];
+                break;
+            case 3:
+                bound_j = arguments[1];
+                relative_i = arguments[2];
+                relative_j = arguments[2];
+                break;
+            case 2:
+                bound_j = arguments[0];
+                relative_i = arguments[1];
+                relative_j = arguments[1];
+                break;
+        }
+
+        super();
+        this.bound_vector_i = arguments[0];
+        this.bound_vector_j = bound_j;
+        this.relative_vector_i = relative_i;
+        this.relative_vector_j = relative_j;
+        this.#inversion_multiplier = new Vector(1,1);
+    }
+
+    get i() { return this.bound_vector_i.i + (this.#inversion_multiplier.i * this.relative_vector_i.i); }
+    set i(_) { return; }
+    
+    get j() { return this.bound_vector_j.j + (this.#inversion_multiplier.j * this.relative_vector_j.j); }
+    set j(_) { return; }
+
+    get bound_i() { return this.bound_vector_i.i; }
+    get bound_j() { return this.bound_vector_j.j; }
+
+    get relative_i() { return this.relative_vector_i.i; }
+    get relative_j() { return this.relative_vector_j.j; }
+
+    set invert(value) { this.#inversion_multiplier = (value) ? new Vector(-1, -1) : new Vector(1, 1); }
+    set invert_i(value) { this.#inversion_multiplier.i = (value) ? -1 : 1; }
+    set invert_j(value) { this.#inversion_multiplier.j = (value) ? -1 : 1; }
 }
 
 class Line {
@@ -154,4 +209,20 @@ function randint(a, b=null) {
     return Math.floor(min + (max - min + 1) * Math.random());
 }
 
-export { Vector, Line, randint }
+function is_colliding(victim, perp) {
+    let victim_dimensions = [
+        ("width" in victim) ? victim.width : 0,
+        ("height" in victim) ? victim.height : 0
+    ]
+    let perp_dimensions = [
+        ("width" in perp) ? perp.width : 0,
+        ("height" in perp) ? perp.height : 0
+    ]
+
+    return (victim.x + victim_dimensions[0]) > perp.x &&
+           victim.x < (perp.x + perp_dimensions[0]) &&
+           (victim.y + victim_dimensions[1]) > perp.y &&
+           victim.y < (perp.y + perp_dimensions[1]);
+}
+
+export { Vector, RelativeVector, Line, randint, is_colliding }
