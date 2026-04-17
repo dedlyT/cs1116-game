@@ -1,5 +1,5 @@
 import { Vector, RelativeVector, is_colliding, randint } from "./mymath.js";
-import { Level, TILES } from "./levels.js";
+import { Level, TILES, load_tiles } from "./levels.js";
 import { UICanvas, Element, Text, Button, TextBox } from "./ui.js";
 
 let canvas;
@@ -16,14 +16,14 @@ const LAYERS = ["background", "middleground", "foreground"];
 const NAME_LEGAL_CHARS = "abcdefghijklmnopqrstuvwxyz123456789_";
 const NAME_MAX_CHARS = 20;
 let current_layer = "background";
-let current_tile = TILES.woodwall.name;
+let current_tile = TILES.empty.name;
 let show_all_layers = true;
 let relative_tilesize = 25;
 let relative_offset = new Vector();
 
-let main_menu;
-let dropdown_menu;
-let edit_menu;
+let main_menu = new UICanvas();
+let dropdown_menu = new UICanvas();
+let edit_menu = new UICanvas();
 
 const mouse = {lclick: false, rclick: false, pos: null};
 
@@ -35,9 +35,9 @@ function init() {
     context = canvas.getContext("2d");
 
     current_level = new Level(context);
-    create_dropdown_menu();
     create_edit_menu();
     create_main_menu();
+    create_dropdown_menu();
 
     level_uploader.addEventListener("change", event => {
         const file = event.target.files[0];
@@ -60,30 +60,32 @@ function init() {
     window.addEventListener("mouseup", unclick, false);
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
-    draw();
+    
+    load_tiles(draw);
 }
 
 function create_dropdown_menu() {
-    dropdown_menu = new UICanvas();
+    let element;
     dropdown_menu.set("page", new UICanvas());
     dropdown_menu.enabled = false;
+    dropdown_menu.current_page = 0;
 }
     
 //future functionality for more than 20 tiles! (20 tiles/page)
 function generate_dropdown_page(page) {
     let element;
-    const page_canvas = dropdown_menu.get("page");
+    let page_canvas = new UICanvas();
     const MAX_PER_PAGE = 20;
     let last_tile;
     let i=-1;
 
     let tiles = Object.keys(TILES);
-    if (page === 0) { tiles = ["spawn", "+ enemy", "- enemy", ...tiles]; }
+    if (dropdown_menu.current_page === 0) { tiles = ["spawn", "+ enemy", "- enemy", ...tiles]; }
 
     for (let tile of tiles) {
         i++;
-        if (i < MAX_PER_PAGE * page) continue;
-        if (i > MAX_PER_PAGE + MAX_PER_PAGE * page) break;
+        if (i < MAX_PER_PAGE * dropdown_menu.current_page) continue;
+        if (i > MAX_PER_PAGE + MAX_PER_PAGE * dropdown_menu.current_page) break;
 
         let vectors;
         if (last_tile === undefined) {
@@ -98,7 +100,7 @@ function generate_dropdown_page(page) {
         element = new Button(
             context,
             new RelativeVector(vectors[0], vectors[1], new Vector(0,5)),
-            (page === 0 && i < 3) ? "hotpink" : "darkslateblue",
+            (dropdown_menu.current_page === 0 && i < 3) ? "hotpink" : "darkslateblue",
             tile,
             "15px Arial",
             "azure",
@@ -106,8 +108,10 @@ function generate_dropdown_page(page) {
         );
         element.on_click(self => {
             const last_tile = dropdown_menu.get("page").get(current_tile);
-            last_tile.text_colour = "azure";
-            last_tile.set_outline("rgb(0,0,0,0)");
+            if (last_tile !== undefined) {
+                last_tile.text_colour = "azure";
+                last_tile.set_outline("rgb(0,0,0,0)");
+            }
             current_tile = self.text;
             self.text_colour = "plum";
             self.set_outline("plum", 2);
@@ -119,12 +123,56 @@ function generate_dropdown_page(page) {
         page_canvas.set(tile, element);
         last_tile = tile;
     }
-    return page_canvas;
+
+    const max_pages = Math.floor(tiles.length / MAX_PER_PAGE);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            main_menu.get("tile_dropdown").bounds[1],
+            main_menu.get("tile_dropdown").bounds[0],
+            new Vector(10)
+        ),
+        (dropdown_menu.current_page > 0) ? "darkorchid" : "rgb(135, 108, 147)",
+        "<",
+        "15px Arial",
+        (dropdown_menu.current_page > 0) ? "azure" : "darkgrey",
+        new Vector(7,7)
+    );
+    element.on_click(self => {
+        if (self.colour === "darkorchid") {
+            dropdown_menu.current_page--;
+            generate_dropdown_page();
+        }
+    });
+    page_canvas.set("left", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            page_canvas.get("left").bounds[1],
+            page_canvas.get("left").bounds[0],
+            new Vector(3)
+        ),
+        (dropdown_menu.current_page < max_pages) ? "darkorchid" : "rgb(135, 108, 147)",
+        ">",
+        "15px Arial",
+        (dropdown_menu.current_page < max_pages) ? "azure" : "darkgrey",
+        new Vector(7,7)
+    );
+    element.on_click(self => {
+        if (self.colour === "darkorchid") {
+            dropdown_menu.current_page++;
+            generate_dropdown_page();
+        }
+    });
+    page_canvas.set("right", element);
+
+    dropdown_menu.set("page", page_canvas);
 }
 
 function create_edit_menu() {
     let element;
-    edit_menu = new UICanvas();
     edit_menu.enabled = false;
 
     element = new Element(
@@ -251,8 +299,7 @@ function create_edit_menu() {
 
 function create_main_menu() {
     let element;
-    main_menu = new UICanvas();
-    
+
     element = new Button(
         context,
         new Vector(5,5),
@@ -337,7 +384,9 @@ function create_main_menu() {
             self.text = "˰";
             self.text_colour = "blueviolet";
             self.colour = "azure";
-            dropdown_menu.set("page", generate_dropdown_page(0));
+            generate_dropdown_page();
+        } else {
+            dropdown_menu.get("page").enabled = false;
         }
     });
     main_menu.set("tile_dropdown", element);

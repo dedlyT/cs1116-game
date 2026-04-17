@@ -4,11 +4,55 @@ let xhttp;
 
 const TILES = {
     empty: {name:"empty", should_ignore:true},
-    grass: {name:"grass", colour:"green"},
-    discoloured_grass: {name:"discoloured_grass", colour:"darkgreen"},
-    woodwall: {name:"woodwall", colour:"wheat", collidable:true, opaque:true, persistent:true},
-    woodroof: {name:"woodroof", colour:"tan"},
+    grass1: {name:"grass1", src:"grass1.png"},
+    grass2: {name:"grass2", src:"grass2.png"},
+    grass3: {name:"grass3", src:"grass3.png"},
+    flowers1: {name:"flowers1", src:"flowers1.png"},
+    flowers2: {name:"flowers2", src:"flowers2.png"},
+    flowers3: {name:"flowers3", src:"flowers3.png"},
+    pebble1: {name:"pebble1", src:"pebble1.png"},
+    pebble2: {name:"pebble2", src:"pebble2.png"},
+    pebble3: {name:"pebble3", src:"pebble3.png"},
+    pebble4: {name:"pebble4", src:"pebble4.png"},
+    wall: {name:"wall", src:"wall.png", collidable:true, opaque:true},
+    wall_vertical: {name:"wall_vertical", src:"wall_vertical.png", collidable:true, opaque:true},
+    wall_horizontal: {name:"wall_horizontal", src:"wall_horizontal.png", collidable:true, opaque:true},
+    wall_topleft: {name:"wall_topleft", src:"wall_topleft.png", collidable:true, opaque:true},
+    wall_topright: {name:"wall_topright", src:"wall_topright.png", collidable:true, opaque:true},
+    wall_bottomright: {name:"wall_bottomright", src:"wall_bottomright.png", collidable:true, opaque:true},
+    wall_bottomleft: {name:"wall_bottomleft", src:"wall_bottomleft.png", collidable:true, opaque:true},
+    wall_middletop: {name:"wall_middletop", src:"wall_middletop.png", collidable:true, opaque:true},
+    wall_middleright: {name:"wall_middleright", src:"wall_middleright.png", collidable:true, opaque:true},
+    wall_middlebottom: {name:"wall_middlebottom", src:"wall_middlebottom.png", collidable:true, opaque:true},
+    wall_middleleft: {name:"wall_middleleft", src:"wall_middleleft.png", collidable:true, opaque:true},
+    roof: {name:"roof", src:"roof.png"},
+    roof_topleft: {name:"roof_topleft", src:"roof_topleft.png"},
+    roof_top: {name:"roof_top", src:"roof_top.png"},
+    roof_topright: {name:"roof_topright", src:"roof_topright.png"},
+    roof_right: {name:"roof_right", src:"roof_right.png"},
+    roof_bottomright: {name:"roof_bottomright", src:"roof_bottomright.png"},
+    roof_bottom: {name:"roof_bottom", src:"roof_bottom.png"},
+    roof_bottomleft: {name:"roof_bottomleft", src:"roof_bottomleft.png"},
+    roof_left: {name:"roof_left", src:"roof_left.png"}
 };
+
+const LOADABLE_TILES = Object.keys(TILES).filter((value) => {
+    if (TILES[value].src !== undefined) return value;
+})
+
+function load_tiles(callback) {
+    let num_assets = LOADABLE_TILES.length;
+    for (const tile of LOADABLE_TILES) {
+        const loaded = () => {
+            console.log("LOADED!");
+            num_assets--;
+            if (num_assets === 0) callback();
+        };
+        TILES[tile].sprite = new Image();
+        TILES[tile].sprite.addEventListener("load", loaded, false);
+        TILES[tile].sprite.src = `/static/sprites/${TILES[tile].src}`;
+    }
+}
 
 function generate_array(length, element) {
     if (!(Number.isInteger(length))) { throw Error("width must be int") }
@@ -32,16 +76,9 @@ class Level {
         this.context = context;
         this.name = name;
 
-        this.background = generate_matrix(width, height, TILES.grass.name);
+        this.background = generate_matrix(width, height, TILES.grass1.name);
 
-        this.middleground = [];
-        let middle = generate_array(width, TILES.empty.name);
-        middle[0] = TILES.woodwall.name;
-        middle[29] = TILES.woodwall.name;
-        this.middleground = generate_array(height, middle);
-        let tops = generate_array(width, TILES.woodwall.name);
-        this.middleground[0] = [...tops];
-        this.middleground[29] = [...tops];
+        this.middleground = generate_matrix(width, height, TILES.empty.name);
 
         this.foreground = generate_matrix(width, height, TILES.empty.name);
 
@@ -87,6 +124,12 @@ class Level {
             this.context.fillStyle = tile_data.colour;
             this.context.globalAlpha = 1.0;
             this.context.fillRect(x, y, tilesize, tilesize);   
+        } else {
+            this.context.drawImage(
+                tile_data.sprite,
+                x, y,
+                this.tilesize, this.tilesize
+            );
         }
     }
 
@@ -167,4 +210,4 @@ levels_request.addEventListener("readystatechange", () => {
 levels_request.open("GET", "/level/", false);
 levels_request.send();
 
-export { Level, LEVELS, TILES };
+export { Level, LEVELS, TILES, load_tiles };

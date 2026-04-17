@@ -1,6 +1,6 @@
 import { Vector, Line, is_colliding, randint, RelativeVector } from "./mymath.js";
 import { Entity } from "./player.js";
-import { LEVELS, TILES } from "./levels.js";
+import { LEVELS, TILES, load_tiles } from "./levels.js";
 import { UICanvas, Element, Text } from "./ui.js";
 
 let canvas;
@@ -53,7 +53,8 @@ function init() {
 
     window.addEventListener("keydown", press, false);
     window.addEventListener("keyup", unpress, false);
-    draw();
+    
+    load_tiles(draw);
 }
 
 function create_hud() {
@@ -122,8 +123,9 @@ function draw() {
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     current_level.draw_layer("background");
-    current_level.draw_layer_attribute("middleground", "persistent", false);
-    
+
+    current_level.draw_layer_attribute("middleground", "opaque", false);
+
     const enemies_clone = [...enemies];
     for (const enemy of enemies_clone) {
         enemy.draw();
@@ -140,10 +142,11 @@ function draw() {
     for (const bullet of bullets_clone) {
         bullet.draw();
     }
-
+    
     draw_fov();
-    current_level.draw_layer_attribute("middleground", "persistent");
+    current_level.draw_layer_attribute("middleground", "opaque");
     plr.draw();
+
     current_level.draw_layer("foreground");
 
     const HP = HUD.get("hp");
