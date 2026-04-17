@@ -103,11 +103,16 @@ class Level {
     }
 
     static export(level) {
+        let enemy_spawns_out = [];
+        for (const enemy_spawn of level.enemy_spawns) {
+            enemy_spawns_out.push([...enemy_spawn]);
+        }
         let json_out = {
             "background": level.background,
             "middleground": level.middleground,
             "foreground": level.foreground,
-            "spawn": [0,0]
+            "spawn": [...level.spawn],
+            "enemy_spawns": enemy_spawns_out
         };
         let a = document.createElement("a");
         let file = new Blob([JSON.stringify(json_out)], {type: "application/json"})
@@ -121,17 +126,20 @@ class Level {
         const level_url = `${SCRIPT_ROOT}/level/${level_filename}.json`;
         fetch(level_url)
             .then(res => res.json())
-            .then(data => Level.import(level_filename, data));
+            .then(data => Level.import(level_filename, data) );
     }
 
     static import(name, data) {
-        console.log(name);
-        console.log(data);
         let level = new Level(undefined, name);
         level.background = data.background;
         level.middleground = data.middleground;
         level.foreground = data.foreground;
-        level.spawn = data.spawn;
+        level.spawn = new Vector(...data.spawn);
+        let enemy_spawns_in = [];
+        for (const enemy_spawn of data.enemy_spawns) {
+            enemy_spawns_in.push(new Vector(...enemy_spawn));
+        }
+        level.enemy_spawns = enemy_spawns_in;
         return level;
     }
 }

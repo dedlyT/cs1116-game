@@ -69,13 +69,18 @@ function create_dropdown_menu() {
     dropdown_menu.enabled = false;
 }
     
+//future functionality for more than 20 tiles! (20 tiles/page)
 function generate_dropdown_page(page) {
     let element;
     const page_canvas = dropdown_menu.get("page");
     const MAX_PER_PAGE = 20;
     let last_tile;
     let i=-1;
-    for (let tile in TILES) {
+
+    let tiles = Object.keys(TILES);
+    if (page === 0) { tiles = ["spawn", "+ enemy", "- enemy", ...tiles]; }
+
+    for (let tile of tiles) {
         i++;
         if (i < MAX_PER_PAGE * page) continue;
         if (i > MAX_PER_PAGE + MAX_PER_PAGE * page) break;
@@ -93,7 +98,7 @@ function generate_dropdown_page(page) {
         element = new Button(
             context,
             new RelativeVector(vectors[0], vectors[1], new Vector(0,5)),
-            "darkslateblue",
+            (page === 0 && i < 3) ? "hotpink" : "darkslateblue",
             tile,
             "15px Arial",
             "azure",
@@ -377,6 +382,18 @@ function draw() {
         }
     }
 
+    //draw spawn
+    context.strokeStyle = "blue";
+    context.lineWidth = 4;
+    context.strokeRect(...current_level.spawn, relative_tilesize, relative_tilesize);
+
+    //draw enemies
+    context.strokeStyle = "red";
+    context.lineWidth = 2;
+    for (const enemy_spawn of current_level.enemy_spawns) {
+        context.strokeRect(...enemy_spawn, relative_tilesize, relative_tilesize);
+    }
+
     main_menu.draw();
     dropdown_menu.draw();
     edit_menu.draw();
@@ -401,7 +418,25 @@ function mousemove(event) {
     let tile_y = Math.floor(mouse.pos.y / relative_tilesize);
 
     if (mouse.lclick) {
-        current_level[current_layer][tile_y][tile_x] = current_tile;
+        let coords = new Vector(tile_x*relative_tilesize, tile_y*relative_tilesize);
+        switch(current_tile) {
+            case "spawn":
+                current_level.spawn = coords;
+                break;
+            case "+ enemy":
+                current_level.enemy_spawns.push(coords);
+                break;
+            case "- enemy":
+                current_level.enemy_spawns = current_level.enemy_spawns.filter(spawn => {
+                    if (!(spawn.x === coords.x && spawn.y === coords.y)) {
+                        return spawn;
+                    }
+                });
+                break;
+            default:
+                current_level[current_layer][tile_y][tile_x] = current_tile;
+                break;
+        }
     }
     if (mouse.rclick) {
         current_level[current_layer][tile_y][tile_x] = TILES.empty.name;
@@ -422,6 +457,7 @@ function click(event) {
         case 0:
         case 1:
             mouse.lclick = true;
+            mousemove(event);
             break;
         case 2:
             mouse.rclick = true;
@@ -461,6 +497,17 @@ function press(event) {
                 break;
         }
         edit_menu.get("level_name_length").text = `${level_name_textbox.value.length}/${NAME_MAX_CHARS}`;
+    }
+
+    switch (key) {
+        case "uparrow":
+            break;
+        case "leftarrow":
+            break;
+        case "downarrow":
+            break;
+        case "rightarrow":
+            break;
     }
 }
 

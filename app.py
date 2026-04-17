@@ -110,13 +110,14 @@ def get_level(level_name=None):
         with open(f"static/levels/{level_name}", "r") as f:
             data = json.load(f)
     except FileNotFoundError:
-        return abort(404);
+        return abort(404)
     
     return {
         "background": data["background"],
         "middleground": data["middleground"],
         "foreground": data["foreground"],
-        "spawn": data["spawn"]
+        "spawn": data["spawn"],
+        "enemy_spawns": data["enemy_spawns"]
     }
 
 @app.route("/logout/", methods=["POST"])
