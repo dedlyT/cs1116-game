@@ -5,6 +5,7 @@ import { UICanvas, Element, Text, Button, TextBox } from "./ui.js";
 let canvas;
 let context;
 let request;
+let level_uploader;
 
 const FPS = 30;
 const INTERVAL = 1000 / FPS;
@@ -12,7 +13,8 @@ let last = Date.now();
 
 let current_level;
 const LAYERS = ["background", "middleground", "foreground"];
-const LEGAL_CHARS = "abcdefghijklmnopqrstuvwxyz_"
+const NAME_LEGAL_CHARS = "abcdefghijklmnopqrstuvwxyz123456789_";
+const NAME_MAX_CHARS = 20;
 let current_layer = "background";
 let current_tile = TILES.woodwall.name;
 let show_all_layers = true;
@@ -28,6 +30,7 @@ const mouse = {lclick: false, rclick: false, pos: null};
 document.addEventListener("DOMContentLoaded", init, false);
 
 function init() {
+    level_uploader = document.querySelector("#level_uploader");
     canvas = document.querySelector("canvas");
     context = canvas.getContext("2d");
 
@@ -35,6 +38,22 @@ function init() {
     create_dropdown_menu();
     create_edit_menu();
     create_main_menu();
+
+    level_uploader.addEventListener("change", event => {
+        const file = event.target.files[0];
+        const name = file.name.split(".json")[0];
+
+        const reader = new FileReader();
+        reader.onload = event => {
+            current_level = Level.import(name, JSON.parse(event.target.result));
+            current_level.context = context;
+            edit_menu.get("level_name").value = name;
+            edit_menu.get("level_name_length").text = `${name.length}/${NAME_MAX_CHARS}`;
+            edit_menu.enabled = false;
+            level_uploader.value = null;
+        };
+        reader.readAsText(file);
+    });
 
     window.addEventListener("mousemove", mousemove, false);
     window.addEventListener("mousedown", click, false);
@@ -176,7 +195,7 @@ function create_edit_menu() {
             edit_menu.get("level_name").bounds[1],
             new Vector()
         ),
-        "0/20",
+        `0/${NAME_MAX_CHARS}`,
         "15px monospace",
         "indianred"
     );
@@ -185,6 +204,44 @@ function create_edit_menu() {
         new Vector(0,5)
     );
     edit_menu.set("level_name_length", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            edit_menu.get("background").bounds[0],
+            edit_menu.get("level_name_length").bounds[1],
+            new Vector(50,30)
+        ),
+        "azure",
+        "export",
+        "20px monospace",
+        "indianred",
+        new Vector(15,15)
+    );
+    element.set_outline("indianred", 2);
+    element.on_click(_ => {
+        current_level.name = edit_menu.get("level_name").value;
+        if (current_level.name === "") current_level.name = "unnamed_level";
+        Level.export(current_level);
+    });
+    edit_menu.set("export", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            edit_menu.get("export").bounds[0],
+            edit_menu.get("export").bounds[1],
+            new Vector(0,15)
+        ),
+        "azure",
+        "import",
+        "20px monospace",
+        "lightpink",
+        new Vector(15,15)
+    );
+    element.set_outline("lightpink", 2);
+    element.on_click(_ => level_uploader.click());
+    edit_menu.set("import", element);
 }
 
 function create_main_menu() {
@@ -392,7 +449,7 @@ function press(event) {
     const level_name_textbox = edit_menu.get("level_name")
 
     if (edit_menu.enabled && level_name_textbox.editing) {
-        if (LEGAL_CHARS.includes(key) && level_name_textbox.value.length < 20) {
+        if (NAME_LEGAL_CHARS.includes(key) && level_name_textbox.value.length < NAME_MAX_CHARS) {
             level_name_textbox.value += key;
         }
         switch (key) {
@@ -403,7 +460,7 @@ function press(event) {
                 level_name_textbox.editing = false;
                 break;
         }
-        edit_menu.get("level_name_length").text = `${level_name_textbox.value.length}/20`;
+        edit_menu.get("level_name_length").text = `${level_name_textbox.value.length}/${NAME_MAX_CHARS}`;
     }
 }
 

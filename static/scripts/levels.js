@@ -26,8 +26,9 @@ function generate_matrix(width, height, element) {
 }
 
 class Level {
-    constructor(context, width=30, height=30) {
+    constructor(context, name, width=30, height=30) {
         this.context = context;
+        this.name = name;
 
         this.background = generate_matrix(width, height, TILES.grass.name);
 
@@ -45,6 +46,7 @@ class Level {
         this.tilesize = 750 / Math.max(width, height);
         
         this.spawn = new Vector(5*this.tilesize, 5*this.tilesize);
+        this.enemy_spawns = [];
     }
 
     draw_layer(layer) {
@@ -102,29 +104,35 @@ class Level {
 
     static export(level) {
         let json_out = {
-            "background": this.background,
-            "middleground": this.middleground,
-            "foreground": this.foreground
+            "background": level.background,
+            "middleground": level.middleground,
+            "foreground": level.foreground,
+            "spawn": [0,0]
         };
         let a = document.createElement("a");
-        let file = new Blob([JSON.stringify(json_out)], {type: "text/plain"})
+        let file = new Blob([JSON.stringify(json_out)], {type: "application/json"})
         a.href = URL.createObjectURL(file);
-        a.download = "mylevel.json";
+        a.download = level.name;
         a.click();
     }
 
-    static import(level_name) {
-        const level_url = `${SCRIPT_ROOT}/level/${level_name}`;
+    static import_filename(level_name) {
+        const level_filename = level_name.split(".json")[0];
+        const level_url = `${SCRIPT_ROOT}/level/${level_filename}.json`;
         fetch(level_url)
             .then(res => res.json())
-            .then(data => {
-                let level = new Level();
-                level.background = data.background;
-                level.middleground = data.middleground;
-                level.foreground = data.foreground;
-                level.spawn = data.spawn;
-                return level;
-            });
+            .then(data => Level.import(level_filename, data));
+    }
+
+    static import(name, data) {
+        console.log(name);
+        console.log(data);
+        let level = new Level(undefined, name);
+        level.background = data.background;
+        level.middleground = data.middleground;
+        level.foreground = data.foreground;
+        level.spawn = data.spawn;
+        return level;
     }
 }
 
@@ -133,7 +141,7 @@ fetch(`${SCRIPT_ROOT}/level/`)
     .then(res => res.json())
     .then(data => {
         for (let filename of data) {
-            LEVELS[filename.replace(".json", "")] = Level.import(filename);
+            LEVELS[filename.replace(".json", "")] = Level.import_filename(filename);
         }
     });
 
