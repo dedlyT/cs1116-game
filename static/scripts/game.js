@@ -1,7 +1,7 @@
 import { Vector, Line, is_colliding, randint, RelativeVector } from "./mymath.js";
 import { Entity } from "./player.js";
 import { LEVELS, TILES, load_tiles } from "./levels.js";
-import { UICanvas, Element, Text } from "./ui.js";
+import { UICanvas, Element, Text, Button } from "./ui.js";
 
 let canvas;
 let context;
@@ -9,6 +9,7 @@ let request;
 let current_level;
 let bounding_rect;
 const HUD = new UICanvas();
+const death_menu = new UICanvas();
 
 const FPS = 60;
 const INTERVAL = 1000 / FPS;
@@ -28,6 +29,8 @@ const actions = {
     moving_right: false,
     mouse: new Vector()
 };
+let start_run = Date.now();
+let score = {"time":0, "levels":0};
 
 document.addEventListener("DOMContentLoaded", init, false)
 document.addEventListener("mousemove", mousemove, false);
@@ -37,24 +40,38 @@ function init() {
     bounding_rect = canvas.getBoundingClientRect();
     context = canvas.getContext("2d");
 
+    start_run = Date.now();
+    const levels = Object.keys(LEVELS);
+    load_new_level(LEVELS[levels[randint(0, levels.length-1)]]);
+
+    create_hud();
+    create_death_menu();
+
+    window.addEventListener("keydown", press, false);
+    window.addEventListener("keyup", unpress, false);
+    window.addEventListener("click", event => {
+        death_menu.check_collisions(actions.mouse);
+    }, false);
+    
+    load_tiles(draw);
+}
+
+function load_new_level(level) {
+    score["levels"]++;
+    enemies.length = 0;
+    bullets.length = 0;
+    
     plr.context = context;
+    plr.health = 100;
     plr.immunity_accumulator = 0;
     plr.immunity_timeout = 100;
     plr.immune = true;
 
-    const levels = Object.keys(LEVELS);
-    current_level = LEVELS[levels[randint(0, levels.length-1)]];
+    current_level = level;
     current_level.context = context;
     plr.coords.x = current_level.spawn.x;
     plr.coords.y = current_level.spawn.y;
     load_level(current_level);
-
-    create_hud();
-
-    window.addEventListener("keydown", press, false);
-    window.addEventListener("keyup", unpress, false);
-    
-    load_tiles(draw);
 }
 
 function create_hud() {
@@ -100,6 +117,109 @@ function create_hud() {
     HUD.set("hp", HP);
 }
 
+function create_death_menu() {
+    death_menu.enabled = false;
+    let element;
+
+    element = new Element(
+        context,
+        new Vector(),
+        new Vector(canvas.width, canvas.height),
+        "rgb(0,0,0,0.5)"
+    );
+    death_menu.set("dimmer", element);
+
+    element = new Element(
+        context,
+        new Vector(100, 100),
+        new Vector(canvas.width-200, 200),
+        "rebeccapurple"
+    )
+    element.set_outline("purple", 2);
+    death_menu.set("background", element);
+
+    element = new Text(
+        context,
+        new RelativeVector(
+            death_menu.get("background").bounds[0],
+            new Vector(20, 20)
+        ),
+        "You died!",
+        "bold 40px Arial",
+        "azure"
+    );
+    death_menu.set("title", element);
+
+    element = new Text(
+        context,
+        new RelativeVector(
+            death_menu.get("title").bounds[0],
+            death_menu.get("title").bounds[1],
+            new Vector(0, 30)
+        ),
+        "Time: ",
+        "20px Arial",
+        "azure"
+    );
+    death_menu.set("time_score", element);
+
+    element = new Text(
+        context,
+        new RelativeVector(
+            death_menu.get("time_score").bounds[0],
+            death_menu.get("time_score").bounds[1],
+            new Vector(0, 10)
+        ),
+        "Levels: ",
+        "20px Arial",
+        "azure"
+    );
+    death_menu.set("level_score", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            death_menu.get("level_score").bounds[0],
+            death_menu.get("level_score").bounds[1],
+            new Vector(0,20)
+        ),
+        "azure",
+        "new run",
+        "20px Arial",
+        "purple",
+        new Vector(20,20)
+    );
+    element.set_outline("purple", 4);
+    element.on_click(self => {
+        start_run = Date.now();
+        const levels = Object.keys(LEVELS);
+        load_new_level(LEVELS[levels[randint(0, levels.length-1)]]);
+        death_menu.enabled = false;
+    });
+    death_menu.set("retry", element);
+
+    element = new Button(
+        context,
+        new RelativeVector(
+            death_menu.get("retry").bounds[1],
+            death_menu.get("retry").bounds[0],
+            new Vector(20)
+        ),
+        "azure",
+        "my profile",
+        "20px Arial",
+        "purple",
+        new Vector(20, 20)
+    );
+    element.set_outline("purple", 4);
+    element.on_click(self => {
+        let a = document.createElement("a");
+        a.href = "/stats/";
+        a.click();
+    });
+    death_menu.set("profile", element);
+}
+
 function draw() {
     request = window.requestAnimationFrame(draw);
     let current = Date.now();
@@ -117,14 +237,16 @@ function draw() {
     if (elapsed <= INTERVAL) return;
     last = current - (elapsed % INTERVAL);
 
-    calculate_player(dT);
-    calculate_bullets(dT);
-    calculate_enemies(dT);
+    if (!death_menu.enabled) {
+        calculate_player(dT);
+        calculate_bullets(dT);
+        calculate_enemies(dT);
+    }
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     current_level.draw_layer("background");
 
-    current_level.draw_layer_attribute("middleground", "opaque", false);
+    current_level.draw_layer_attribute("middleground", "opaque");
 
     const enemies_clone = [...enemies];
     for (const enemy of enemies_clone) {
@@ -142,7 +264,7 @@ function draw() {
     for (const bullet of bullets_clone) {
         bullet.draw();
     }
-    
+
     draw_fov();
     current_level.draw_layer_attribute("middleground", "opaque");
     plr.draw();
@@ -155,11 +277,12 @@ function draw() {
     HP.get("foreground").dimensions.x = HP.get("outline").dimensions.x * (1 - health_percentage);
 
     HUD.draw();
+    death_menu.draw();
 }
 
 function load_level(level) {
     for (const enemy_spawn of level.enemy_spawns) {
-        const enemy = new Entity(context, enemy_spawn, new Vector(25,25), randint(100,150), "red");
+        const enemy = new Entity(context, new Vector(...enemy_spawn), new Vector(25,25), randint(100,150), "red");
 
         let element;
         enemy.hp_hud = new UICanvas();
@@ -246,6 +369,10 @@ function calculate_enemies(dT) {
             plr.immune = true;
             plr.immunity_accumulator = 0;
             if (plr.health <= 0) {
+                score["time"] = Math.ceil((Date.now() - start_run) / 1000);
+                death_menu.get("time_score").text = `Time: ${score["time"]} seconds`;
+                death_menu.get("level_score").text = `Levels traversed: ${score["levels"]}`;
+                death_menu.enabled = true;
             }
         }
 
@@ -275,6 +402,10 @@ function calculate_enemies(dT) {
             return value;
         }
     })
+}
+
+function die() {
+
 }
 
 function calculate_player(dT) {
@@ -464,5 +595,7 @@ function mousemove(event) {
     if (plr === null || plr === undefined) { return; }
     actions.mouse.x = event.clientX - bounding_rect.left;
     actions.mouse.y = event.clientY - bounding_rect.top;
-    plr.face(actions.mouse);
+    if (!death_menu.enabled) {
+        plr.face(actions.mouse);
+    }
 }

@@ -204,6 +204,8 @@ levels_request.addEventListener("readystatechange", () => {
     if (levels_request.readyState !== 4 || levels_request.status !== 200) return;
     const data = JSON.parse(levels_request.responseText);
     for (let filename of data) {
+        //there's a 404 error because it's seeing .dsstore (mac os folder data file) but i cant delete it ...
+        if (filename === ".DS_Store") continue;
         LEVELS[filename.replace(".json", "")] = Level.import_filename(filename);
     }
 }, false);
