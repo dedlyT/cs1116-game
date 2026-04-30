@@ -8,6 +8,8 @@ let context;
 let request;
 let current_level;
 let bounding_rect;
+let xhttp;
+
 const HUD = new UICanvas();
 const death_menu = new UICanvas();
 
@@ -41,8 +43,6 @@ function init() {
     context = canvas.getContext("2d");
 
     start_run = Date.now();
-    const levels = Object.keys(LEVELS);
-    load_new_level(LEVELS[levels[randint(0, levels.length-1)]]);
 
     create_hud();
     create_death_menu();
@@ -56,7 +56,10 @@ function init() {
     load_tiles(draw);
 }
 
-function load_new_level(level) {
+function load_new_level() {
+    const levels = Object.keys(LEVELS);
+    const level =LEVELS[levels[randint(0, levels.length-1)]];
+
     score["levels"]++;
     enemies.length = 0;
     bullets.length = 0;
@@ -115,6 +118,23 @@ function create_hud() {
     HP.get("foreground").dimensions.y = HP.get("outline").dimensions.y;
 
     HUD.set("hp", HP);
+
+    element = new Text(
+        context,
+        new RelativeVector(
+            new Vector(),
+            HP.get("outline").bounds[0],
+            new Vector()
+        ),
+        "00:00 Level 1",
+        "20px monospace",
+        "azure",
+        "grey",
+        new Vector(10,10)
+    );
+    element.pos.bound_vector_i = new Vector(canvas.width - element.dimensions.x - 10);
+    element.set_outline("darkgrey", 2);
+    HUD.set("scoreboard", element);
 }
 
 function create_death_menu() {
@@ -192,8 +212,8 @@ function create_death_menu() {
     element.set_outline("purple", 4);
     element.on_click(self => {
         start_run = Date.now();
-        const levels = Object.keys(LEVELS);
-        load_new_level(LEVELS[levels[randint(0, levels.length-1)]]);
+        score["levels"] = 0;
+        load_new_level();
         death_menu.enabled = false;
     });
     death_menu.set("retry", element);
@@ -214,7 +234,7 @@ function create_death_menu() {
     element.set_outline("purple", 4);
     element.on_click(self => {
         let a = document.createElement("a");
-        a.href = "/stats/";
+        a.href = STATS_URL;
         a.click();
     });
     death_menu.set("profile", element);
@@ -238,9 +258,19 @@ function draw() {
     last = current - (elapsed % INTERVAL);
 
     if (!death_menu.enabled) {
+        if (enemies.length === 0) {
+            load_new_level();
+        }
+
         calculate_player(dT);
         calculate_bullets(dT);
         calculate_enemies(dT);
+
+        const run_time = Date.now() - start_run;
+        const total_seconds = Math.floor(run_time / 1000);
+        const minutes = Math.floor(total_seconds / 60);
+        const seconds = total_seconds % 60;
+        HUD.get("scoreboard").text = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} Level ${score["levels"]}`
     }
 
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -369,10 +399,17 @@ function calculate_enemies(dT) {
             plr.immune = true;
             plr.immunity_accumulator = 0;
             if (plr.health <= 0) {
-                score["time"] = Math.ceil((Date.now() - start_run) / 1000);
+                score["time"] = Math.floor((Date.now() - start_run) / 1000);
                 death_menu.get("time_score").text = `Time: ${score["time"]} seconds`;
                 death_menu.get("level_score").text = `Levels traversed: ${score["levels"]}`;
                 death_menu.enabled = true;
+
+                let data = new FormData();
+                data.append("time", score["time"]);
+                data.append("levels", score["levels"]);
+                xhttp = new XMLHttpRequest();
+                xhttp.open("POST", STATS_URL, false);
+                xhttp.send(data);
             }
         }
 

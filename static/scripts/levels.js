@@ -50,7 +50,7 @@ function load_tiles(callback) {
         };
         TILES[tile].sprite = new Image();
         TILES[tile].sprite.addEventListener("load", loaded, false);
-        TILES[tile].sprite.src = `/static/sprites/${TILES[tile].src}`;
+        TILES[tile].sprite.src = `${ROOT_URL}/static/sprites/${TILES[tile].src}`;
     }
 }
 
@@ -177,7 +177,7 @@ class Level {
             if (xhttp.readyState !== 4 || xhttp.status !== 200) return;
             level = Level.import(level_filename, JSON.parse(xhttp.responseText));
         }, false);
-        xhttp.open("POST", "/level", false);
+        xhttp.open("POST", GET_LEVEL_URL, false);
         xhttp.send(data);
 
         return level;
@@ -209,7 +209,7 @@ levels_request.addEventListener("readystatechange", () => {
         LEVELS[filename.replace(".json", "")] = Level.import_filename(filename);
     }
 }, false);
-levels_request.open("GET", "/level/", false);
+levels_request.open("GET", GET_LEVEL_URL, false);
 levels_request.send();
 
 export { Level, LEVELS, TILES, load_tiles };

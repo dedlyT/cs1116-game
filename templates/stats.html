@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Statistics{% endblock %}
+
+{% block head %}
+<style>
+    main {
+        display: flex;
+        flex-direction: row;
+    }
+
+    section {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<section>
+    <h1>Recent</h1>
+    {% if (recent_runs | length) == 0 %}
+    <p style="color:grey">nothing here...</p>
+    {% else %}
+    {% for entry in recent_runs %}
+    <article>
+        <h2>{{ entry.unix | datetime }}</h2>
+        <p>Duration: {{ entry.duration }} seconds</p>
+        <p>Levels traversed: {{ entry.levels_traversed }}</p>
+    </article>
+    {% endfor %}
+    {% endif %}
+</section>
+
+<section>
+    <h1>Best</h1>
+    {% if (top_runs | length) == 0 %}
+    <p style="color:grey">nothing here...</p>
+    {% else %}
+    {% for entry in top_runs %}
+    <article>
+        <h2>{{ entry.unix | datetime }}</h2>
+        <p>Duration: {{ entry.duration }} seconds</p>
+        <p>Levels traversed: {{ entry.levels_traversed }}</p>
+        <p>{{ entry.time_per_level }} seconds/level</p>
+    </article>
+    {% endfor %}
+    {% endif %}
+</section>
+{% endblock %}
