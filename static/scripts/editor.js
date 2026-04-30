@@ -6,6 +6,7 @@ let canvas;
 let context;
 let request;
 let level_uploader;
+let bounding_rect;
 
 const FPS = 30;
 const INTERVAL = 1000 / FPS;
@@ -32,6 +33,7 @@ document.addEventListener("DOMContentLoaded", init, false);
 function init() {
     level_uploader = document.querySelector("#level_uploader");
     canvas = document.querySelector("canvas");
+    bounding_rect = canvas.getBoundingClientRect();
     context = canvas.getContext("2d");
 
     current_level = new Level(context);
@@ -450,8 +452,9 @@ function draw() {
 
 function mousemove(event) {
     //update mouse position
-    let relative_x = event.clientX - canvas.offsetLeft;
-    let relative_y = event.clientY - canvas.offsetTop;
+    let bounding_rect = canvas.getBoundingClientRect();
+    let relative_x = event.clientX - bounding_rect.left;
+    let relative_y = event.clientY - bounding_rect.top;
     let mouse_pos = new Vector(relative_x, relative_y);
     if (relative_x < 0 || relative_x > canvas.width) mouse_pos = null;
     if (relative_y < 0 || relative_y > canvas.height) mouse_pos = null;

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, session, g, request, abort
+from flask import Flask, render_template, redirect, url_for, session, g, request, abort, jsonify
 from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import database
@@ -6,6 +6,8 @@ import sqlite3 as sql
 import functools
 import forms
 import json
+import datetime
+import time
 import os
 
 app = Flask(__name__)
@@ -15,6 +17,10 @@ app.teardown_appcontext(database.close_db)
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
+
+@app.template_filter("datetime")
+def datetimeunix(s):
+    return datetime.datetime.fromtimestamp(s).strftime("%d/%m/%Y %H:%M")
 
 @app.before_request
 def load_session():
@@ -133,6 +139,40 @@ def logout():
 @login_required
 def game():
     return render_template("game.html")
+
+@app.route("/stats/", methods=["GET", "POST"])
+@login_required
+def stats():
+    db = database.get_db()
+    if request.method == "POST":
+        duration = request.form["time"]
+        levels = request.form["levels"]
+        db.execute("""
+            INSERT INTO runs(username, unix, duration, levels_traversed)
+            VALUES (?, ?, ?, ?);
+        """, (g.username, time.time(), duration, levels))
+        db.commit()
+        return jsonify(success=True)
+
+    
+    recent_runs = db.execute("""
+        SELECT unix, duration, levels_traversed
+        FROM runs
+        WHERE username = ?
+        ORDER BY unix DESC
+        LIMIT 6;
+    """, (g.username,)).fetchall()
+    top_runs = db.execute("""
+        SELECT unix, duration, levels_traversed,
+                (duration / levels_traversed) AS time_per_level
+        FROM runs
+        WHERE username = ?
+        ORDER BY levels_traversed DESC, time_per_level ASC
+        LIMIT 5;
+    """, (g.username,)).fetchall()
+
+    return render_template("stats.html", recent_runs=recent_runs, top_runs=top_runs)
+
 
 @app.route("/editor/")
 @login_required

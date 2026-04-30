@@ -1,4 +1,13 @@
 Table accounts {
-    username text [primary key]
+    username text [pk]
     password text [not null]
 }
+
+Table runs {
+    id int [pk, increment]
+    username text [not null]
+    unix int [not null]
+    duration int [not null]
+    levels_traversed int [not null]   
+}
+Ref: runs.username > accounts.username [delete: cascade]
